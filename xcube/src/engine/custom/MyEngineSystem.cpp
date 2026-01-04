@@ -10,7 +10,6 @@ MyEngineSystem::~MyEngineSystem() {																			// Destructor
 #ifdef __DEBUG																								// Debug info
 	debug("MyEngineSystem::~MyEngineSystem() freeing resources");											// Log destruction
 #endif																										// Debug info
-	entities.clear();																						// Clear entities
 	sprites.clear();																						// Clear sprites
 	sounds.clear();																							// Clear sounds
 	groundTiles.clear();																					// Clear ground tiles
@@ -62,7 +61,7 @@ void MyEngineSystem::movementSystem(Component& com, float deltaTime)
 		float length = std::sqrt(dx * dx + dy * dy);														// calculate length
 		if (length > 1.0f) { dx /= length; dy /= length; }													// normalise if length > 1
 		float speed = DEFAULT_UNIT_SPEED;																	// default speed
-		if (isValidComponent(entity, com.speeds)) speed = com.speeds[entity].value;						// IF HAS SPEED COMPONENT, get speed
+		if (isValidComponent(entity, com.speeds)) speed = com.speeds[entity].value;							// IF HAS SPEED COMPONENT, get speed
 		com.velocities[entity] = Velocity{ dx * speed, dy * speed };										// set velocity
 	}
 	for (auto& velocityComp : com.velocities) {																// FOR EACH VELOCITY
@@ -99,66 +98,86 @@ void MyEngineSystem::collisionSystem(Component& com, float deltaTime)
 			obstacles.emplace_back(other, colliderComp.second.rect);										// add to obstacles
 		}
 		SDL_Rect rectX = collider.rect;																		// copy collider rect
-		rectX.x = round(transform.newPosition.x);															// update x position
+		rectX.x = roundToInt(transform.newPosition.x);														// update x position
 		for (const auto& obstacle : obstacles) {															// FOR EACH OBSTACLE
 			const Entity other = obstacle.first;															// get other entity
 			const SDL_Rect& obstacleRect = obstacle.second;													// get obstacle rect
 			if (SDL_HasIntersection(&rectX, &obstacleRect) == SDL_TRUE) {									// IF INTERSECTING
 				processCollisionEntities(com, entity, other, now);											// process collision
-				if (getEntityByTag(entity) == "PROJECTILE" || getEntityByTag(other) == "PROJECTILE") continue;	// IF PROJECTILE, skip position adjustment
+				if (getEntityTag(entity) == EntityTag::PROJECTILE || getEntityTag(other) == EntityTag::PROJECTILE) continue;	// IF PROJECTILE, skip position adjustment
+				if (getEntityTag(entity) == EntityTag::ENDLEVEL || getEntityTag(other) == EntityTag::ENDLEVEL) continue;	// IF END LEVEL, skip position adjustment
 				if (velocity.x > 0.0f) transform.newPosition.x = float(obstacleRect.x - rectX.w);			// IF MOVING RIGHT, adjust position
 				else transform.newPosition.x = float(obstacleRect.x + obstacleRect.w);						// ELSE ADJUST LEFT
 				velocity.x = 0.0f;																			// stop horizontal movement
-				collider.rect.x = round(transform.newPosition.x);											// update collider position
+				collider.rect.x = roundToInt(transform.newPosition.x);										// update collider position
 				rectX.x = collider.rect.x;																	// update rect x
 				break;																						// exit loop
 			}
 		}
 		transform.position.x = transform.newPosition.x;														// update position x
 		SDL_Rect rectY = collider.rect;																		// copy collider rect
-		rectY.y = round(transform.newPosition.y);															// update y position
+		rectY.y = roundToInt(transform.newPosition.y);														// update y position
 		for (const auto& obstacle : obstacles) {															// FOR EACH OBSTACLE
 			const Entity other = obstacle.first;															// get other entity
 			const SDL_Rect& obstacleRect = obstacle.second;													// get obstacle rect
 			if (SDL_HasIntersection(&rectY, &obstacleRect) == SDL_TRUE) {									// IF INTERSECTING
 				processCollisionEntities(com, entity, other, now);											// process collision
-				if (getEntityByTag(entity) == "PROJECTILE" || getEntityByTag(other) == "PROJECTILE") continue;	// IF PROJECTILE, skip position adjustment
+				if (getEntityTag(entity) == EntityTag::PROJECTILE || getEntityTag(other) == EntityTag::PROJECTILE) continue;	// IF PROJECTILE, skip position adjustment
+				if (getEntityTag(entity) == EntityTag::ENDLEVEL || getEntityTag(other) == EntityTag::ENDLEVEL) continue;	// IF END LEVEL, skip position adjustment
 				if (velocity.y > 0.0f) transform.newPosition.y = float(obstacleRect.y - rectY.h);			// IF MOVING DOWN, adjust position
 				else transform.newPosition.y = float(obstacleRect.y + obstacleRect.h);						// ELSE ADJUST UP
 				velocity.y = 0.0f;																			// stop vertical movement
-				collider.rect.y = round(transform.newPosition.y);											// update collider position
+				collider.rect.y = roundToInt(transform.newPosition.y);										// update collider position
 				rectY.y = collider.rect.y;															 		// update rect y
 				break;																						// exit loop
 			}
 		}
 		transform.position.y = transform.newPosition.y;														// update position y
-		collider.rect.x = round(transform.position.x);														// update collider position x
-		collider.rect.y = round(transform.position.y);														// update collider position y
+		collider.rect.x = roundToInt(transform.position.x);													// update collider position x
+		collider.rect.y = roundToInt(transform.position.y);													// update collider position y
 		com.velocities[entity] = velocity;																	// update velocity
 	}
 }
 
 void MyEngineSystem::processCollisionEntities(Component& com, Entity primary, Entity other, Uint32 now)
 {
+	if ((getEntityTag(primary) == EntityTag::ENDLEVEL && getEntityTag(other) == EntityTag::PC)				// IF PRIMARY IS ENDLEVEL AND OTHER IS PC
+		|| (getEntityTag(other) == EntityTag::ENDLEVEL && getEntityTag(primary) == EntityTag::PC)) {		// OR VICE VERSA
+		Entity player = (getEntityTag(primary) == EntityTag::PC) ? primary : other;							// get player entity
+		Entity endTrigger = (getEntityTag(primary) == EntityTag::ENDLEVEL) ? primary : other;				// get end level trigger entity
+		if (isValidComponent(endTrigger, com.audios) && !com.audios[endTrigger].attackingSound.empty())		// IF END TRIGGER HAS AUDIO COMPONENT AND ATTACKING SOUND
+			playAudio(com.audios[endTrigger].attackingSound, DEFAULT_SFX_VOLUME);							// play sound
+		if (currentLevel + 1 >= levelsCount) {																// IF LAST LEVEL 
+			if (getNPCCount() <= 0) {																		// IF NO NPCS LEFT
+				gameCompleted = true;																		// set game completed
+				return;																						// return
+			}
+			else return;																					// return
+		}
+		++currentLevel;																						// increment level									
+		levelChanging = true;																				// set level changing
+		clearLevelExcept(player);																			// clear level except player
+		return;																								// return
+	}
 	Entity attacker = 0, victim = 0;																		// attacker and victim
-	if (getEntityByTag(primary) == "AMMO") { increaseAmmo(primary, other); return; }						// IF PRIMARY IS AMMO, increase ammo and return
-	else if (getEntityByTag(other) == "AMMO") { increaseAmmo(other, primary); return; }						// IF OTHER IS AMMO, increase ammo and return
-	else if (getEntityByTag(primary) == "HEALTH" && getEntityByTag(other) == "NPC"							// IF ATTACKER IS HEALTH AND VICTIM IS NPC
-		|| getEntityByTag(primary) == "NPC" && getEntityByTag(other) == "HEALTH") return;					// OR VICE VERSA, return
-	else if (getEntityByTag(primary) == "HEALTH") {															// IF ATTACKER IS HEALTH PICKUP
+	if (getEntityTag(primary) == EntityTag::AMMO) { increaseAmmo(primary, other); return; }					// IF PRIMARY IS AMMO, increase ammo and return
+	else if (getEntityTag(other) == EntityTag::AMMO) { increaseAmmo(other, primary); return; }				// IF OTHER IS AMMO, increase ammo and return
+	else if (getEntityTag(primary) == EntityTag::HEALTH && getEntityTag(other) == EntityTag::NPC			// IF ATTACKER IS HEALTH AND VICTIM IS NPC
+		|| getEntityTag(primary) == EntityTag::NPC && getEntityTag(other) == EntityTag::HEALTH) return;		// OR VICE VERSA, return
+	else if (getEntityTag(primary) == EntityTag::HEALTH) {													// IF ATTACKER IS HEALTH PICKUP
 		Health& health = com.healths[other];																// get health of victim	
 		if (health.currentHealth >= health.maxHealth) return;												// IF HEALTH IS MAX, return
 		attacker = primary; victim = other;																	// set attacker and victim
 	}
-	else if (getEntityByTag(other) == "HEALTH") {															// IF VICTIM IS HEALTH PICKUP
+	else if (getEntityTag(other) == EntityTag::HEALTH) {													// IF VICTIM IS HEALTH PICKUP
 		Health& health = com.healths[primary];																// get health of attacker
 		if (health.currentHealth >= health.maxHealth) return;												// IF HEALTH IS MAX, return
 		attacker = other; victim = primary;																	// set attacker and victim
 	}
-	else if (getEntityByTag(primary) == "PROJECTILE") { attacker = primary; victim = other; }				// IF PRIMARY IS PROJECTILE, set attacker and victim
-	else if (getEntityByTag(other) == "PROJECTILE") { attacker = other; victim = primary; }					// IF OTHER IS PROJECTILE, set attacker and victim
-	else if (getEntityByTag(primary) == "NPC" && getEntityByTag(other) == "PC") { attacker = primary; victim = other; }	// IF PRIMARY IS NPC AND OTHER IS PC, set attacker and victim
-	else if (getEntityByTag(other) == "NPC" && getEntityByTag(primary) == "PC") { attacker = other; victim = primary; }	// IF OTHER IS NPC AND PRIMARY IS PC, set attacker and victim
+	else if (getEntityTag(primary) == EntityTag::PROJECTILE) { attacker = primary; victim = other; }		// IF PRIMARY IS PROJECTILE, set attacker and victim
+	else if (getEntityTag(other) == EntityTag::PROJECTILE) { attacker = other; victim = primary; }			// IF OTHER IS PROJECTILE, set attacker and victim
+	else if (getEntityTag(primary) == EntityTag::NPC && getEntityTag(other) == EntityTag::PC) { attacker = primary; victim = other; }	// IF PRIMARY IS NPC AND OTHER IS PC, set attacker and victim
+	else if (getEntityTag(other) == EntityTag::NPC && getEntityTag(primary) == EntityTag::PC) { attacker = other; victim = primary; }	// IF OTHER IS NPC AND PRIMARY IS PC, set attacker and victim
 	if (attacker <= 0 && victim < 0) return;																// IF NO ATTACKER OR VICTIM, return
 	std::string audioString = {};																			// audio string
 	if (!isValidComponent(attacker, com.damages)) return;													// IF ATTACKER HAS NO DAMAGE COMPONENT, return
@@ -175,11 +194,11 @@ void MyEngineSystem::processCollisionEntities(Component& com, Entity primary, En
 		if (!audioString.empty() && sounds.count(audioString)) playAudio(audioString, DEFAULT_SFX_VOLUME);	// play sound
 	}
 	changeEntityHealth(victim, -damage.amount);																// reduce victim health
-	if (getEntityByTag(attacker) == "NPC") changeEntityHealth(attacker, damage.amount / 2);					// IF ATTACKER IS NPC, heal on hit
+	if (getEntityTag(attacker) == EntityTag::NPC) changeEntityHealth(attacker, damage.amount / 2);			// IF ATTACKER IS NPC, heal on hit
 	damage.lastDamageDealtTime = now;																		// update last damage time
-	if (getEntityByTag(attacker) == "PROJECTILE") deactivateProjectile(attacker);							// IF FOUND, deactivate projectile
-	if (getEntityByTag(attacker) == "HEALTH") destroyEntity(attacker);										// IF HEALTH PICKUP, destroy entity
-	return;
+	if (getEntityTag(attacker) == EntityTag::PROJECTILE) deactivateProjectile(attacker);					// IF FOUND, deactivate projectile
+	if (getEntityTag(attacker) == EntityTag::HEALTH) destroyEntity(attacker);								// IF HEALTH PICKUP, destroy entity
+	return;																									// return
 }
 
 void MyEngineSystem::updateAnimationStates(Component& com, float deltaTime)
@@ -266,7 +285,7 @@ void MyEngineSystem::processPendingDeaths()
 void MyEngineSystem::finaliseDeath(Entity entity)
 {
 	component.dying.erase(entity);																			// unmark dying
-	if (getEntityByTag(entity) == "PC") {																	// IF PLAYER CHARACTER
+	if (getEntityTag(entity) == EntityTag::PC) {															// IF PLAYER CHARACTER
 		if (isValidComponent(entity, component.transforms)) {												// IF NO TRANSFORM, return
 			Transform& transform = component.transforms[entity];											// get transform
 			transform.position = transform.startPosition;													// reset position
@@ -278,7 +297,7 @@ void MyEngineSystem::finaliseDeath(Entity entity)
 		}
 		return;																								// return without destroying player
 	}
-	if (getEntityByTag(entity) == "NPC") {																	// IF NPC
+	if (getEntityTag(entity) == EntityTag::NPC) {															// IF NPC
 		int npcScoreValue = DEFAULT_NPC_SCORE_VALUE;														// default score value
 		if (isValidComponent(entity, component.scores)) npcScoreValue = component.scores[entity].amount;	// IF HAS SCORE COMPONENT, get score value
 		score += npcScoreValue;																				// increase score
@@ -295,7 +314,7 @@ void MyEngineSystem::destroyEntity(Entity entity)
 void MyEngineSystem::flushDestroyedEntities()
 {
 	if (entitiesToDestroy.empty()) return;																	// IF NO ENTITIES TO DESTROY, return
-	for (Entity entity : entitiesToDestroy) {																// FOR EACH ENTITY TO DESTROY
+	for (Entity entity : entitiesToDestroy) {																// FOR EACH ENTITY TO DESTROY, erase all components
 		component.transforms.erase(entity);
 		component.velocities.erase(entity);
 		component.sprites.erase(entity);
@@ -304,6 +323,7 @@ void MyEngineSystem::flushDestroyedEntities()
 		component.npcs.erase(entity);
 		component.ammoPickups.erase(entity);
 		component.healthPickups.erase(entity);
+		component.endLevels.erase(entity);
 		component.healths.erase(entity);
 		component.colliders.erase(entity);
 		component.damages.erase(entity);
@@ -315,9 +335,6 @@ void MyEngineSystem::flushDestroyedEntities()
 		component.audios.erase(entity);
 		component.projectiles.erase(entity);
 		component.scores.erase(entity);
-		auto it = std::find(entities.begin(), entities.end(), entity);										// find entity in entities list
-		if (it != entities.end()) entities.erase(it);														// IF FOUND, remove from entities list
-		projectilePools.erase(entity);																		// remove projectile pool if any
 	}
 	entitiesToDestroy.clear();																				// clear destruction list
 }
@@ -327,7 +344,7 @@ void MyEngineSystem::render(std::shared_ptr<GraphicsEngine> gfx)
 	if (!gfx) return;																						// IF NO GRAPHICS ENGINE, return
 	updateCamera(gfx);																						// update camera position
 	renderTiles(gfx);																						// render background tiles first, cheap way to handle layers
-	struct RenderItem { Entity entity; Sprite* sprite; Transform* transform; Animation* anim; };			// render item
+	struct RenderItem { Entity entity; Sprite* sprite; Transform* transform; Animation* anim; int layer; };	// render item (with layer)
 	std::vector<RenderItem> list;																			// list of render items
 	list.reserve(component.sprites.size());																	// reserve space
 	for (auto& spriteComp : component.sprites) {															// FOR EACH SPRITE COMPONENT
@@ -338,8 +355,12 @@ void MyEngineSystem::render(std::shared_ptr<GraphicsEngine> gfx)
 		if (!transform.active) continue;																	// IF NOT ACTIVE, skip
 		Animation* anim = nullptr;																			// animation pointer
 		if (isValidComponent(entity, component.animations)) anim = &component.animations[entity];			// IF HAS ANIMATION, get pointer
-		list.push_back({ entity, &sprite, &transform, anim });												// add to render list	
+		list.push_back({ entity, &sprite, &transform, anim, transform.layer });								// add to render list with layer	
 	}
+	std::stable_sort(list.begin(), list.end(), [](const RenderItem& a, const RenderItem& b) {				// sort by layer and Y position
+		if (a.layer != b.layer) return a.layer < b.layer;													// sort by layer first
+		return a.transform->position.y < b.transform->position.y;											// then by Y position
+		});
 	for (auto& rendered : list) {																			// FOR EACH RENDER ITEM
 		Sprite* spritePtr = rendered.sprite;																// default sprite pointer
 		int currentFrame = {};																				// zero intialise current frame
@@ -357,16 +378,16 @@ void MyEngineSystem::render(std::shared_ptr<GraphicsEngine> gfx)
 		}
 		int xPos = (frameIndex % columns) * sprite.frameW;													// get X position in texture sprite sheet
 		SDL_Rect src = { xPos, 0, sprite.frameW, sprite.frameH };											// source rectangle
-		int width = round(sprite.frameW * rendered.transform->scale);										// scaled width
-		int height = round(sprite.frameH * rendered.transform->scale);										// scaled height
-		float posX = round(rendered.transform->position.x - cameraPosition.x);								// screen X
-		float posY = round(rendered.transform->position.y - cameraPosition.y);								// screen Y
+		int width = roundToInt(sprite.frameW * rendered.transform->scale);									// scaled width
+		int height = roundToInt(sprite.frameH * rendered.transform->scale);									// scaled height
+		int posX = roundToInt(rendered.transform->position.x - cameraPosition.x);							// screen X
+		int posY = roundToInt(rendered.transform->position.y - cameraPosition.y);							// screen Y
 		SDL_Rect dst = { posX, posY, width, height };														// destination rectangle
 		setEntityColliderRect(rendered.entity, rendered.transform->position.x, rendered.transform->position.y, width, height);	// set collider rect
 		SDL_RendererFlip flip = SDL_FLIP_NONE;																// no flip
 		if (rendered.transform->flipH) flip = SDL_FLIP_HORIZONTAL;											// horizontal flip
 		double angle = {};																					// zero intialise angle
-		if (getEntityByTag(rendered.entity) == "PROJECTILE") {												// IF PROJECTILE
+		if (getEntityTag(rendered.entity) == EntityTag::PROJECTILE) {										// IF PROJECTILE
 			if (isValidComponent(rendered.entity, component.velocities)) {									// IF HAS VELOCITY
 				Velocity& velocity = component.velocities[rendered.entity];									// get velocity
 				angle = std::atan2(velocity.y, velocity.x) * (180.0 / M_PI) - 90.0;							// calculate angle in degrees
@@ -389,7 +410,7 @@ void MyEngineSystem::renderHealthBar(std::shared_ptr<GraphicsEngine> gfx, Entity
 	gfx->fillRect(posX, posY, width, BAR_HEIGHT);				 											// draw background
 	SDL_Color fgColor = { 0, 255, 0, 255 };																	// foreground color green
 	gfx->setDrawColor(fgColor);																				// set draw color to foreground color
-	int fillW = round(width * percent);																		// calculate fill width
+	int fillW = roundToInt(width * percent);																// calculate fill width
 	gfx->fillRect(posX, posY, fillW, BAR_HEIGHT);															// draw foreground
 }
 
@@ -456,8 +477,8 @@ void MyEngineSystem::renderTiles(std::shared_ptr<GraphicsEngine> gfx) {
 	for (const Tile& tile : groundTiles) {																	// FOR EACH TILE
 		if (sprites.find(tile.spriteName) == sprites.end()) continue;										// IF SPRITE NOT FOUND, skip
 		const Sprite& sprite = sprites[tile.spriteName];													// get Sprite
-		int screenX = round(tile.x - cameraPosition.x);														// screen X
-		int screenY = round(tile.y - cameraPosition.y);														// screen Y
+		int screenX = roundToInt(tile.x - cameraPosition.x);												// screen X
+		int screenY = roundToInt(tile.y - cameraPosition.y);												// screen Y
 		SDL_Rect src = { 0, 0, sprite.frameW, sprite.frameH };												// source rectangle
 		SDL_Rect dst = { screenX, screenY, sprite.frameW, sprite.frameH };									// destination rectangle
 		gfx->drawTexture(sprite.texture, &src, &dst, 0.0, nullptr, SDL_FLIP_NONE);							// draw texture
@@ -545,8 +566,8 @@ void MyEngineSystem::initProjectilePool(Entity owner, size_t poolSize)
 		int width = TILE_SIZE, height = TILE_SIZE;															// default dimensions
 		float scale = DEFAULT_ENTITY_SCALE;																	// default dimensions
 		scale = foundSprite->second.scale;																	// get scale
-		width = foundSprite->second.frameW * round(scale);													// get width
-		height = foundSprite->second.frameH * round(scale);													// get height
+		width = foundSprite->second.frameW * roundToInt(scale);												// get width
+		height = foundSprite->second.frameH * roundToInt(scale);											// get height
 		addComponentProjectileTag(entity, owner);															// add projectile tag component
 		addComponentTransform(entity, Vector2f(OFFSCREEN_X, OFFSCREEN_Y), scale);							// add transform component
 		addComponentCollider(entity, OFFSCREEN_X, OFFSCREEN_Y, width, height);								// add collider component
@@ -595,7 +616,7 @@ void MyEngineSystem::fireProjectile(Entity owner, const Vector2f& startPos, cons
 
 void MyEngineSystem::deactivateProjectile(Entity entity)
 {
-	if (getEntityByTag(entity) != "PROJECTILE") return;														// IF NOT A PROJECTILE, return
+	if (getEntityTag(entity) != EntityTag::PROJECTILE) return;												// IF NOT A PROJECTILE, return
 	component.velocities[entity] = Velocity{ 0.0f, 0.0f };													// reset velocity
 	Vector2f startPos = component.transforms[entity].startPosition;											// get start position
 	component.transforms[entity].position = Vector2f(startPos.x + cameraPosition.x, startPos.y + cameraPosition.y);	// move off-screen
@@ -607,12 +628,25 @@ void MyEngineSystem::deactivateProjectile(Entity entity)
 void MyEngineSystem::updateCamera(std::shared_ptr<GraphicsEngine> gfx, float deltaTime)
 {
 	if (!gfx) return;																						// IF NO GRAPHICS ENGINE, return
-	if (component.players.empty()) return;																	// IF NO PLAYERS, return
-	Entity player = component.players.begin()->first;														// get first player entity
-	if (!isValidComponent(player, component.transforms)) return;											// IF NO TRANSFORM, return
-	const Transform& transform = component.transforms[player];												// get transform
 	Dimension2i window = gfx->getCurrentWindowSize();														// get window size
-	Vector2f target(transform.position.x - float(window.w) * 0.5f, transform.position.y - float(window.h) * 0.5f);	// calculate target camera position
+	Vector2f target;																						// desired camera position
+	if (component.players.empty()) {																		// IF NO PLAYER, center camera in world
+		target.x = float(worldWidth) * 0.5f - float(window.w) * 0.5f;										// center x
+		target.y = float(worldHeight) * 0.5f - float(window.h) * 0.5f;										// center y
+	}
+	else {																									// ELSE HAS PLAYER
+		Entity player = component.players.begin()->first;													// get first player entity
+		if (!isValidComponent(player, component.transforms)) return;										// IF NO TRANSFORM, return
+		const Transform& transform = component.transforms[player];											// get transform
+		target.x = transform.position.x - float(window.w) * 0.5f;											// center x on player
+		target.y = transform.position.y - float(window.h) * 0.5f;											// center y on player
+	}
+	float minX = std::min(0.0f, float(worldWidth) - float(window.w));										// min X
+	float maxX = std::max(0.0f, float(worldWidth) - float(window.w));										// max X
+	float minY = std::min(0.0f - DEFAULT_FONT_SIZE * 2, float(worldHeight) - float(window.h));				// min Y (account for HUD)
+	float maxY = std::max(0.0f, float(worldHeight) - float(window.h) + DEFAULT_FONT_SIZE * 2);				// max Y (account for HUD)
+	if (target.x < minX) target.x = minX; if (target.x > maxX) target.x = maxX;								// clamp X
+	if (target.y < minY) target.y = minY; if (target.y > maxY) target.y = maxY;								// clamp Y
 	cameraPosition.x += (target.x - cameraPosition.x) * cameraSmoothing * deltaTime;						// smooth camera x
 	cameraPosition.y += (target.y - cameraPosition.y) * cameraSmoothing * deltaTime;						// smooth camera y
 }
@@ -628,7 +662,6 @@ void MyEngineSystem::increaseAmmo(Entity ammoPickup, Entity owner) {
 		playAudio(audio.attackingSound, DEFAULT_SFX_VOLUME);												// play sound
 	}
 	destroyEntity(ammoPickup);																				// destroy ammo pickup entity
-
 }
 
 void MyEngineSystem::addComponentIdleAnimations(Entity entity, std::string idle_down, std::string idle_right, std::string idle_up) {
@@ -659,21 +692,22 @@ void MyEngineSystem::addComponentAudio(Entity entity, std::string damageSound, s
 	audio.attackingSound = attackingSound;																	// set attack sound
 }
 
-std::string MyEngineSystem::getEntityByTag(Entity entity) {
-	if (isValidComponent(entity, component.players)) return "PC";											// IF PLAYER
-	if (isValidComponent(entity, component.npcs)) return "NPC";												// IF NPC
-	if (isValidComponent(entity, component.ammoPickups)) return "AMMO";										// IF AMMO PICKUP
-	if (isValidComponent(entity, component.healthPickups)) return "HEALTH";									// IF HEALTH PICKUP
-	if (isValidComponent(entity, component.projectiles)) return "PROJECTILE";								// IF PROJECTILE
-	return "Unknown";																						// ELSE UNKNOWN
+MyEngineSystem::EntityTag MyEngineSystem::getEntityTag(Entity entity) {
+	if (isValidComponent(entity, component.players)) return EntityTag::PC;									// IF HAS PLAYER COMPONENT, return PC
+	if (isValidComponent(entity, component.npcs)) return EntityTag::NPC;									// IF HAS NPC COMPONENT, return NPC
+	if (isValidComponent(entity, component.ammoPickups)) return EntityTag::AMMO;							// IF HAS AMMO PICKUP COMPONENT, return AMMO
+	if (isValidComponent(entity, component.healthPickups)) return EntityTag::HEALTH;						// IF HAS HEALTH PICKUP COMPONENT, return HEALTH
+	if (isValidComponent(entity, component.projectiles)) return EntityTag::PROJECTILE;						// IF HAS PROJECTILE COMPONENT, return PROJECTILE
+	if (isValidComponent(entity, component.endLevels)) return EntityTag::ENDLEVEL;							// IF HAS END LEVEL COMPONENT, return ENDLEVEL
+	return EntityTag::Unknown;																				// ELSE return Unknown
 }
 
 bool MyEngineSystem::isProjectileOwner(Entity entity, Entity other) {
-	if (getEntityByTag(entity) == "PROJECTILE") {															// IF ENTITY IS PROJECTILE
+	if (getEntityTag(entity) == EntityTag::PROJECTILE) {													// IF ENTITY IS PROJECTILE
 		ProjectileTag& projectile = component.projectiles[entity];											// get projectile
 		if (other == projectile.owner) return true;															// IF OTHER IS OWNER, return true
 	}
-	else if (getEntityByTag(other) == "PROJECTILE") {														// IF OTHER IS PROJECTILE
+	else if (getEntityTag(other) == EntityTag::PROJECTILE) {												// IF OTHER IS PROJECTILE
 		ProjectileTag& projectile = component.projectiles[other];											// get projectile as other
 		if (entity == projectile.owner) return true;														// IF ENTITY IS OWNER, return true
 	}
@@ -683,8 +717,8 @@ bool MyEngineSystem::isProjectileOwner(Entity entity, Entity other) {
 void MyEngineSystem::setEntityColliderRect(Entity entity, float posX, float posY, int width, int height) {
 	if (isValidComponent(entity, component.colliders)) {													// IF HAS COLLIDER
 		Collider& collider = component.colliders[entity];													// get collider
-		collider.rect.x = round(posX);																		// set x
-		collider.rect.y = round(posY);																		// set y
+		collider.rect.x = roundToInt(posX);																	// set x
+		collider.rect.y = roundToInt(posY);																	// set y
 		collider.rect.w = width;																			// set width
 		collider.rect.h = height;																			// set height
 	}
@@ -693,4 +727,45 @@ template <typename T>
 bool MyEngineSystem::isValidComponent(Entity entity, ComponentMap<T>& comp) {
 	if (comp.find(entity) != comp.end())  return true;														// IF COMPONENT EXISTS, return true
 	return false;																							// return false
+}
+
+void MyEngineSystem::clearLevelExcept(Entity player)
+{
+	std::unordered_set<Entity> allEntities;																	// set of all entities
+	auto getComponent = [&](auto& cmap) {																	// collect entities from component map
+		for (const auto& pair : cmap) allEntities.insert(pair.first);										// FOR EACH ENTITY IN COMPONENT MAP, insert into set
+		};
+	getComponent(component.transforms);
+	getComponent(component.velocities);
+	getComponent(component.sprites);
+	getComponent(component.animations);
+	getComponent(component.players);
+	getComponent(component.npcs);
+	getComponent(component.ammoPickups);
+	getComponent(component.healthPickups);
+	getComponent(component.projectiles);
+	getComponent(component.endLevels);
+	getComponent(component.healths);
+	getComponent(component.colliders);
+	getComponent(component.damages);
+	getComponent(component.speeds);
+	getComponent(component.ammos);
+	getComponent(component.healthBars);
+	getComponent(component.inputs);
+	getComponent(component.animationStates);
+	getComponent(component.dying);
+	getComponent(component.audios);
+	getComponent(component.scores);
+	for (Entity entity : allEntities) if (entity != player) destroyEntity(entity);							// FOR EACH ENTITY, destroy if not the player
+	bool keeperHadPool = (player != 0 && projectilePools.find(player) != projectilePools.end());			// check if player had a projectile pool
+	flushDestroyedEntities();																				// flush destroyed entities
+	if (player == 0)  projectilePools.clear();																// IF PLAYER IS 0, clear all projectile pools
+	else for (auto projectilePool = projectilePools.begin(); projectilePool != projectilePools.end(); )		// ELSE, FOR EACH POOL
+		if (projectilePool->first == player) ++projectilePool;												// IF PLAYER, skip
+		else projectilePool = projectilePools.erase(projectilePool);										// ELSE ERASE
+	groundTiles.clear();																					// clear ground tiles
+	entitiesToDestroy.clear();																				// clear entities to destroy
+	cameraPosition = Vector2f{ 0.0f, 0.0f };																// reset camera position
+	if (keeperHadPool && isValidComponent(player, component.players))										// IF PLAYER HAD POOL AND IS PLAYER
+		initProjectilePool(player, DEFAULT_PROJECTILES_PER_OWNER);											// reinitialise projectile pool
 }
