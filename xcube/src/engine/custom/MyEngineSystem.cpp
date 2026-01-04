@@ -1,6 +1,6 @@
 #include "MyEngineSystem.h"																					// Include header
 
-MyEngineSystem::MyEngineSystem() : nextEntityId(1) {														// Start IDs from 1
+MyEngineSystem::MyEngineSystem() {														// Start IDs from 1
 #ifdef __DEBUG																								// Debug info
 	debug("MyEngineSystem constructed");																	// Log construction
 #endif																										// Debug info
@@ -10,11 +10,12 @@ MyEngineSystem::~MyEngineSystem() {																			// Destructor
 #ifdef __DEBUG																								// Debug info
 	debug("MyEngineSystem::~MyEngineSystem() freeing resources");											// Log destruction
 #endif																										// Debug info
-	sprites.clear();																						// Clear sprites
-	sounds.clear();																							// Clear sounds
+	loadedSprites.clear();																					// Clear sprites
+	loadedSounds.clear();																					// Clear sounds
 	groundTiles.clear();																					// Clear ground tiles
 	projectilePools.clear();																				// Clear projectile pools
 	entitiesToDestroy.clear(); 																				// Clear entities to destroy
+	activeEntities.clear();																					// Clear active entities
 }
 
 void MyEngineSystem::update(float deltaTime, int playerEntityId)
@@ -186,12 +187,12 @@ void MyEngineSystem::processCollisionEntities(Component& com, Entity primary, En
 	if (damage.amount > 0) {													 							// IF DAMAGE AMOUNT > 0
 		if (isValidComponent(victim, com.audios)) {															// IF VICTIM HAS AUDIO COMPONENT								
 			audioString = com.audios[victim].damageSound;													// get damage sound
-			if (!audioString.empty() && sounds.count(audioString)) playAudio(audioString, DEFAULT_SFX_VOLUME);	// play sound
+			if (!audioString.empty() && loadedSounds.count(audioString)) playAudio(audioString, DEFAULT_SFX_VOLUME);	// play sound
 		}
 	}
 	if (isValidComponent(attacker, com.audios)) {															// IF ATTACKER HAS AUDIO COMPONENT
 		audioString = com.audios[attacker].attackingSound;													// get attacking sound
-		if (!audioString.empty() && sounds.count(audioString)) playAudio(audioString, DEFAULT_SFX_VOLUME);	// play sound
+		if (!audioString.empty() && loadedSounds.count(audioString)) playAudio(audioString, DEFAULT_SFX_VOLUME);	// play sound
 	}
 	changeEntityHealth(victim, -damage.amount);																// reduce victim health
 	if (getEntityTag(attacker) == EntityTag::NPC) changeEntityHealth(attacker, damage.amount / 2);			// IF ATTACKER IS NPC, heal on hit
@@ -245,7 +246,7 @@ void MyEngineSystem::updateAnimationStates(Component& com, float deltaTime)
 		animation.loop = true;																				// set loop to true
 		animation.frameCount = 1;																			// set frame count to 1
 		if (!isValidComponent(entity, com.sprites)) continue; 												// IF SPRITE FOUND
-		auto foundSprite = sprites.find(newAnim);															// find Sprite by animation name
+		auto foundSprite = loadedSprites.find(newAnim);															// find Sprite by animation name
 		animation.loop = foundSprite->second.loop;															// set loop from sprite
 		animation.frameCount = foundSprite->second.frameCount;												// set frame count from sprite
 	}
@@ -305,40 +306,6 @@ void MyEngineSystem::finaliseDeath(Entity entity)
 	}
 }
 
-void MyEngineSystem::destroyEntity(Entity entity)
-{
-	if (std::find(entitiesToDestroy.begin(), entitiesToDestroy.end(), entity) == entitiesToDestroy.end())	// IF NOT ALREADY MARKED FOR DESTRUCTION
-		entitiesToDestroy.push_back(entity);																// mark for destruction
-}
-
-void MyEngineSystem::flushDestroyedEntities()
-{
-	if (entitiesToDestroy.empty()) return;																	// IF NO ENTITIES TO DESTROY, return
-	for (Entity entity : entitiesToDestroy) {																// FOR EACH ENTITY TO DESTROY, erase all components
-		component.transforms.erase(entity);
-		component.velocities.erase(entity);
-		component.sprites.erase(entity);
-		component.animations.erase(entity);
-		component.players.erase(entity);
-		component.npcs.erase(entity);
-		component.ammoPickups.erase(entity);
-		component.healthPickups.erase(entity);
-		component.endLevels.erase(entity);
-		component.healths.erase(entity);
-		component.colliders.erase(entity);
-		component.damages.erase(entity);
-		component.speeds.erase(entity);
-		component.ammos.erase(entity);
-		component.healthBars.erase(entity);
-		component.inputs.erase(entity);
-		component.animationStates.erase(entity);
-		component.audios.erase(entity);
-		component.projectiles.erase(entity);
-		component.scores.erase(entity);
-	}
-	entitiesToDestroy.clear();																				// clear destruction list
-}
-
 void MyEngineSystem::render(std::shared_ptr<GraphicsEngine> gfx)
 {
 	if (!gfx) return;																						// IF NO GRAPHICS ENGINE, return
@@ -365,8 +332,8 @@ void MyEngineSystem::render(std::shared_ptr<GraphicsEngine> gfx)
 		Sprite* spritePtr = rendered.sprite;																// default sprite pointer
 		int currentFrame = {};																				// zero intialise current frame
 		if (rendered.anim) {																				// IF HAS ANIMATION
-			if (sprites.find(rendered.anim->name) != sprites.end())											// IF SPRITE FOUND BY ANIMATION NAME
-				spritePtr = &sprites[rendered.anim->name];													// set sprite pointer to that sprite
+			if (loadedSprites.find(rendered.anim->name) != loadedSprites.end())											// IF SPRITE FOUND BY ANIMATION NAME
+				spritePtr = &loadedSprites[rendered.anim->name];													// set sprite pointer to that sprite
 			currentFrame = rendered.anim->currentFrame;														// get current frame from animation
 		}
 		Sprite& sprite = *spritePtr;																		// get sprite	
@@ -416,7 +383,7 @@ void MyEngineSystem::renderHealthBar(std::shared_ptr<GraphicsEngine> gfx, Entity
 
 void MyEngineSystem::loadSprite(const std::string& name, const std::string& filename, int frameW, int frameH, int frames, int startFrame, bool loop, float scale, SDL_Color transparent)
 {
-	if (sprites.count(name)) return;																		// IF SPRITE ALREADY LOADED, return
+	if (loadedSprites.count(name)) return;																		// IF SPRITE ALREADY LOADED, return
 	SDL_Texture* texture = ResourceManager::loadTexture(filename, transparent);								// load texture
 	if (!texture) return;																					// IF FAILED TO LOAD TEXTURE, return
 	int width = {}, height = {};																			// zero initialise width and height
@@ -431,13 +398,13 @@ void MyEngineSystem::loadSprite(const std::string& name, const std::string& file
 	sprite.startFrame = startFrame;																			// set start frame
 	sprite.loop = loop;																						// set loop
 	sprite.scale = scale;																					// set scale
-	sprites[name] = std::move(sprite);																		// store Sprite
+	loadedSprites[name] = std::move(sprite);																		// store Sprite
 }
 
 void MyEngineSystem::attachSprite(Entity entity, const std::string& spriteName)
 {
-	auto sprite = sprites.find(spriteName);																	// find Sprite
-	if (sprite == sprites.end()) return;																	// IF SPRITE NOT FOUND, return
+	auto sprite = loadedSprites.find(spriteName);																	// find Sprite
+	if (sprite == loadedSprites.end()) return;																	// IF SPRITE NOT FOUND, return
 	component.sprites[entity] = sprite->second;																// attach sprite
 	if (!isValidComponent(entity, component.animations)) {													// IF NO ANIMATION
 		Animation anim;																						// create Animation
@@ -475,8 +442,8 @@ void MyEngineSystem::renderTiles(std::shared_ptr<GraphicsEngine> gfx) {
 	if (!gfx) return;																						// IF NO GRAPHICS ENGINE, return
 	Dimension2i window = gfx->getCurrentWindowSize();														// get window size
 	for (const Tile& tile : groundTiles) {																	// FOR EACH TILE
-		if (sprites.find(tile.spriteName) == sprites.end()) continue;										// IF SPRITE NOT FOUND, skip
-		const Sprite& sprite = sprites[tile.spriteName];													// get Sprite
+		if (loadedSprites.find(tile.spriteName) == loadedSprites.end()) continue;										// IF SPRITE NOT FOUND, skip
+		const Sprite& sprite = loadedSprites[tile.spriteName];													// get Sprite
 		int screenX = roundToInt(tile.x - cameraPosition.x);												// screen X
 		int screenY = roundToInt(tile.y - cameraPosition.y);												// screen Y
 		SDL_Rect src = { 0, 0, sprite.frameW, sprite.frameH };												// source rectangle
@@ -515,8 +482,8 @@ void MyEngineSystem::handleDeath(Entity entity, Health& health) {
 	anim.loop = false;																						// set no loop
 	anim.currentFrame = {};																					// reset current frame
 	if (anim.frameDuration <= 0.0f) anim.frameDuration = 0.1f;												// IF FRAME DURATION <= 0, set to default to avoid division by zero
-	auto foundSprite = sprites.find(newAnim);																// find sprite
-	if (foundSprite != sprites.end())																		// IF FOUND
+	auto foundSprite = loadedSprites.find(newAnim);																// find sprite
+	if (foundSprite != loadedSprites.end())																		// IF FOUND
 	{
 		anim.frameCount = foundSprite->second.frameCount;													// set frame count from sprite
 		anim.loop = foundSprite->second.loop;																// set loop from sprite
@@ -526,21 +493,21 @@ void MyEngineSystem::handleDeath(Entity entity, Health& health) {
 }
 
 void MyEngineSystem::loadSound(const std::string& name, const std::string& filename) {
-	if (sounds.count(name)) return;																			// already loaded
+	if (loadedSounds.count(name)) return;																			// already loaded
 	Mix_Chunk* chunk = ResourceManager::loadSound(filename);												// load sound
 	if (!chunk) return;																						// failed to load
-	sounds[name] = chunk;																					// store sound
+	loadedSounds[name] = chunk;																					// store sound
 }
 
 void MyEngineSystem::playAudio(const std::string& name, int volume, int loops, int channel)
 {
-	auto sound = sounds.find(name);																			// find sound from map
+	auto sound = loadedSounds.find(name);																			// find sound from map
 	Mix_Chunk* chunk = nullptr;																				// sound chunk pointer
-	if (sound != sounds.end()) chunk = sound->second;														// IF FOUND, get chunk
+	if (sound != loadedSounds.end()) chunk = sound->second;														// IF FOUND, get chunk
 	else {																									// ELSE NOT FOUND
 		chunk = ResourceManager::loadSound(name);															// try to load sound
 		if (!chunk) return;																					// IF FAILED TO LOAD, return
-		sounds[name] = chunk;																				// store sound
+		loadedSounds[name] = chunk;																				// store sound
 	}
 	if (volume >= 0) {																						// IF VOLUME SPECIFIED
 		int vol = volume;																					// set volume
@@ -562,7 +529,7 @@ void MyEngineSystem::initProjectilePool(Entity owner, size_t poolSize)
 		Entity entity = createEntity();																		// create entity
 		pool.push_back(entity);																				// add to pool
 		attachSprite(entity, "bullet");
-		auto foundSprite = sprites.find("bullet");															// find block sprit
+		auto foundSprite = loadedSprites.find("bullet");															// find block sprit
 		int width = TILE_SIZE, height = TILE_SIZE;															// default dimensions
 		float scale = DEFAULT_ENTITY_SCALE;																	// default dimensions
 		scale = foundSprite->second.scale;																	// get scale
@@ -729,43 +696,48 @@ bool MyEngineSystem::isValidComponent(Entity entity, ComponentMap<T>& comp) {
 	return false;																							// return false
 }
 
+void MyEngineSystem::flushDestroyedEntities()
+{
+	if (entitiesToDestroy.empty()) return;																	// IF NO ENTITIES TO DESTROY, return
+	for (Entity entity : entitiesToDestroy) {																// FOR EACH ENTITY TO DESTROY, erase all components
+		component.transforms.erase(entity);
+		component.velocities.erase(entity);
+		component.sprites.erase(entity);
+		component.animations.erase(entity);
+		component.players.erase(entity);
+		component.npcs.erase(entity);
+		component.ammoPickups.erase(entity);
+		component.healthPickups.erase(entity);
+		component.endLevels.erase(entity);
+		component.healths.erase(entity);
+		component.colliders.erase(entity);
+		component.damages.erase(entity);
+		component.speeds.erase(entity);
+		component.ammos.erase(entity);
+		component.healthBars.erase(entity);
+		component.inputs.erase(entity);
+		component.animationStates.erase(entity);
+		component.dying.erase(entity);
+		component.audios.erase(entity);
+		component.projectiles.erase(entity);
+		component.scores.erase(entity);
+		activeEntities.erase(entity);																		// erase from active entities
+	}
+	entitiesToDestroy.clear();																				// clear destruction list
+}
+
 void MyEngineSystem::clearLevelExcept(Entity player)
 {
-	std::unordered_set<Entity> allEntities;																	// set of all entities
-	auto getComponent = [&](auto& cmap) {																	// collect entities from component map
-		for (const auto& pair : cmap) allEntities.insert(pair.first);										// FOR EACH ENTITY IN COMPONENT MAP, insert into set
-		};
-	getComponent(component.transforms);
-	getComponent(component.velocities);
-	getComponent(component.sprites);
-	getComponent(component.animations);
-	getComponent(component.players);
-	getComponent(component.npcs);
-	getComponent(component.ammoPickups);
-	getComponent(component.healthPickups);
-	getComponent(component.projectiles);
-	getComponent(component.endLevels);
-	getComponent(component.healths);
-	getComponent(component.colliders);
-	getComponent(component.damages);
-	getComponent(component.speeds);
-	getComponent(component.ammos);
-	getComponent(component.healthBars);
-	getComponent(component.inputs);
-	getComponent(component.animationStates);
-	getComponent(component.dying);
-	getComponent(component.audios);
-	getComponent(component.scores);
-	for (Entity entity : allEntities) if (entity != player) destroyEntity(entity);							// FOR EACH ENTITY, destroy if not the player
+	for (Entity entity : activeEntities)																	// FOR EACH ACTIVE ENTITY
+		if (entity != player) entitiesToDestroy.insert(entity);												// mark for destruction if not player
 	bool keeperHadPool = (player != 0 && projectilePools.find(player) != projectilePools.end());			// check if player had a projectile pool
-	flushDestroyedEntities();																				// flush destroyed entities
+	flushDestroyedEntities();																				// flush destroyed entities at this point to avoid issues
 	if (player == 0)  projectilePools.clear();																// IF PLAYER IS 0, clear all projectile pools
 	else for (auto projectilePool = projectilePools.begin(); projectilePool != projectilePools.end(); )		// ELSE, FOR EACH POOL
 		if (projectilePool->first == player) ++projectilePool;												// IF PLAYER, skip
 		else projectilePool = projectilePools.erase(projectilePool);										// ELSE ERASE
 	groundTiles.clear();																					// clear ground tiles
-	entitiesToDestroy.clear();																				// clear entities to destroy
 	cameraPosition = Vector2f{ 0.0f, 0.0f };																// reset camera position
-	if (keeperHadPool && isValidComponent(player, component.players))										// IF PLAYER HAD POOL AND IS PLAYER
+	if (keeperHadPool && isValidComponent(player, component.players))										// IF PLAYER HAD POOL AND IS VALID PLAYER
 		initProjectilePool(player, DEFAULT_PROJECTILES_PER_OWNER);											// reinitialise projectile pool
 }

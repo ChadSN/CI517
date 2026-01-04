@@ -141,8 +141,8 @@ public:
 	static SDL_Texture* createTextureFromString(const std::string&, TTF_Font*, SDL_Color);
 
 	// ADDED
-	void GraphicsEngine::setWindowFocus() { if (window) SDL_RaiseWindow(window); }						// bring window to front
-	void GraphicsEngine::setWindowResizable() { if (window) SDL_SetWindowResizable(window, SDL_TRUE); }	// make window resizable
+	void setWindowFocus() { if (window) SDL_RaiseWindow(window); }						// bring window to front
+	void setWindowResizable() { if (window) SDL_SetWindowResizable(window, SDL_TRUE); }	// make window resizable
 };
 
 typedef GraphicsEngine GFX;

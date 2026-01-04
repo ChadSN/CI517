@@ -7,29 +7,13 @@
 #include <algorithm>																											// for std::stable_sort
 
 static constexpr int DEFAULT_ENTITY_ID = { -1 };																				// Default entity ID
-static constexpr Uint32 TILE_SIZE = { 16 };																						// tile size in pixels	
-static constexpr float DEFAULT_ENTITY_SCALE = { 1.0f };																			// Default scale
-static constexpr float FIXED_DT = { 1.0f / 60.0f };																				// fixed timestep	
-static constexpr int DEFAULT_MAX_HEALTH = { 100 };																				// Default max health
-static constexpr Uint32 DEFAULT_AMMO = { 10 };																					// initial ammo count
-static constexpr Uint32 DEFAULT_MAX_AMMO = { 50 };																				// maximum ammo count
-static constexpr float DEFAULT_UNIT_SPEED = { 100 };																			// Default speed
-static constexpr float DEFAULT_PC_SPEED = { 200 };																				// Default speed
-static constexpr float deltaTime = { 1.0f / 60.0f };																			// fixed delta time
-static constexpr Uint32 STAT_CHANGE_COOLDOWN = { 250 };																			// stat change cooldown in milliseconds
-static constexpr Uint32 BAR_HEIGHT = { 4 };																						// height of health/ammo bars
-static constexpr Uint32 DEFAULT_UNIT_DAMAGE = { 10 };																			// Default unit damage
-static constexpr Uint32 DEFAULT_NPC_CHASE_RANGE = { 256 * 256 };																// Default NPC chase radius
-static constexpr size_t DEFAULT_PROJECTILES_PER_OWNER = 50;																		// default bullets per owner
-static constexpr Uint32 DEFAULT_NPC_SCORE_VALUE = { 10 };																		// default score per NPC
-static constexpr Uint32 DEFAULT_SFX_VOLUME = { 10 };																			// default sfx volume
-static constexpr float OFFSCREEN_X = { -1000.0f };																				// offscreen x position
-static constexpr float OFFSCREEN_Y = { -1000.0f };																				// offscreen y position
-static constexpr float DEFAULT_PROJECTILE_SPEED = { 800.0f };																	// default projectile speed
-static constexpr Uint32 DEFAULT_FONT_SIZE = { 24 };																				// default font size
-static constexpr Uint32 BACKGROUND_LAYER = { 0 };																				// background rendering layer
-static constexpr Uint32 GROUND_LAYER = { 1 };																					// ground rendering layer
-static constexpr Uint32 OBJECT_LAYER = { 2 };																					// object rendering layer
+static constexpr float DEFAULT_ENTITY_SCALE = { 1.0f }, DEFAULT_UNIT_SPEED = { 100 }, DEFAULT_PC_SPEED = { 200 },				// Default scales and speeds
+deltaTime = { 1.0f / 60.0f }, OFFSCREEN_X = { -1000.0f }, OFFSCREEN_Y = { -1000.0f }, DEFAULT_PROJECTILE_SPEED = { 800.0f };	// delta time and offscreen positions
+static constexpr Uint32 DEFAULT_MAX_HEALTH = { 100 }, DEFAULT_AMMO = { 10 }, DEFAULT_MAX_AMMO = { 50 }, TILE_SIZE = { 16 },		// Default health, ammo and tile size
+STAT_CHANGE_COOLDOWN = { 250 }, BAR_HEIGHT = { 4 }, DEFAULT_UNIT_DAMAGE = { 10 }, DEFAULT_NPC_CHASE_RANGE = { 256 * 256 },		// stat change cooldown, health bar height, damage and NPC chase range
+DEFAULT_NPC_SCORE_VALUE = { 10 }, DEFAULT_SFX_VOLUME = { 10 }, DEFAULT_FONT_SIZE = { 24 }, CAMERA_SMOOTHING_FACTOR = { 6 },		// default score value, sfx volume, font size and camera smoothing
+BACKGROUND_LAYER = { 0 }, GROUND_LAYER = { 1 }, OBJECT_LAYER = { 2 };															// default rendering layers
+static constexpr size_t DEFAULT_PROJECTILES_PER_OWNER = { 50 };																	// default projectile pool size per owner
 
 class MyEngineSystem {
 	friend class XCube2Engine;																									// Friend class declaration
@@ -46,85 +30,40 @@ private:
 	struct ProjectileTag { Entity owner = { 0 }; };																				// Projectile Tag with owner entity
 	struct EndLevelTag {};																										// End Level Tag
 	struct Transform {																											// A structure to hold transform data
-		Vector2f startPosition = {};																							// Starting position
-		Vector2f position = {};																									// Position
-		float scale = DEFAULT_ENTITY_SCALE;																						// Scale factor
-		int rotation = {};																										// Rotation in degrees
-		bool initialFlipH = false;																								// Initial horizontal flip (original image flipped)
-		bool flipH = false;																										// Horizontal flip (for rendering)
-		Vector2f newPosition = {};																								// New position after movement
-		bool active = true; 																									// Is the entity active
-		int layer = {};																											// Rendering layer
+		Vector2f startPosition = {}, position = {}, newPosition = {};															// Positions					
+		float scale = DEFAULT_ENTITY_SCALE;																						// Scale
+		int rotation = {}, layer = {};																							// Rotation and rendering layer
+		bool initialFlipH = false, flipH = false, active = true;																// Flipping and active state
 	};
-	struct Velocity { float x = {}, y = {}; };																					// A structure to hold velocity data
-	struct Sprite {																												// A structure to hold sprite data
-		SDL_Texture* texture = nullptr;																							// Texture containing all frames
-		int frameW = {};																										// Width of a single frame
-		int frameH = {};																										// Height of a single frame
-		int frameCount = 1;																										// Total number of frames
-		int textureWidth = {};																									// Full texture width
-		int textureHeight = {};  																								// Full texture height
-		int startFrame = {};																									// Starting frame index
-		bool loop = true;																										// Does the sprite loop
-		float scale = DEFAULT_ENTITY_SCALE;																						// Scale factor
+	struct Velocity { float x = {}, y = {}; };																					// Velocity structure
+	struct Sprite {																												// Sprite structure
+		SDL_Texture* texture = nullptr;																							// Texture pointer
+		int frameW = {}, frameH = {}, frameCount = 1, textureWidth = {}, textureHeight = {}, startFrame = {};					// Frame dimensions and count
+		bool loop = true;																										// Looping flag
+		float scale = DEFAULT_ENTITY_SCALE;																						// Scale
 	};
-	struct Animation {																											// A structure to hold animation data
-		std::string name;																										// Animation name (eg "player_walk_down")
-		bool loop = true;																										// Does the animation loop
-		int frameCount = 1;																										// Total number of frames (cached from Sprite)
-		float frameDuration = 0.1f;																								// seconds per frame (cached from Sprite)
-		float animTimer = {};																									// Timer for animation frame switching
-		int currentFrame = {};																									// Current frame index (0..frameCount-1)
+	struct Animation {																											// Animation structure
+		std::string name;																										// Animation name
+		bool loop = true;																										// Looping flag
+		int frameCount = 1, currentFrame = {};																					// Frame count and current frame
+		float frameDuration = 0.1f, animTimer = {};																				// Frame duration and timer
 	};
-	struct AnimationState {																										// A structure to hold animation state data
-		std::string idle_up = {};																								// Idle up animation name
-		std::string idle_down = {};																								// Idle down animation name
-		std::string idle_right = {};																							// Idle right animation name
-		std::string walk_up = {};																								// Walk up animation name
-		std::string walk_down = {};																								// Walk down animation name
-		std::string walk_right = {};																							// Walk right animation name
-		std::string death_up = {};																								// Death up animation name
-		std::string death_down = {};																							// Death down animation name
-		std::string death_right = {};																							// Death right animation name
-		std::string previousAnimation = {};																						// Previous animation name
+	struct AnimationState {																										// Animation state structure
+		std::string idle_up = {}, idle_down = {}, idle_right = {}, walk_up = {}, walk_down = {}, walk_right = {},				// idle and walk animations
+			death_up = {}, death_down = {}, death_right = {}, previousAnimation = {};											// death and previous animation
 	};
-	struct Audio {																												// A structure to hold audio data
-		std::string damageSound = {};																							// Sound to play on damage
-		std::string attackingSound = {};																						// Sound to play on attacking
+	struct Audio { std::string damageSound = {}, attackingSound = {}; };														// Audio component structure with sound names
+	struct Health {																												// Health structure
+		int currentHealth = DEFAULT_MAX_HEALTH, maxHealth = DEFAULT_MAX_HEALTH;													// Health values
+		Uint32 lastHealthChangeTime = STAT_CHANGE_COOLDOWN;																		// Last health change time
 	};
-	struct Health {																												// A structure to hold health data
-		int currentHealth = DEFAULT_MAX_HEALTH;																					// Current health
-		int maxHealth = DEFAULT_MAX_HEALTH;																						// Maximum health
-		Uint32 lastHealthChangeTime = STAT_CHANGE_COOLDOWN;																		// Last time health was changed
-	};
-	struct HealthBar {																											// A structure to hold health bar data
-		SDL_Rect backgroundRect = {};																							// Background rectangle
-		SDL_Rect healthRect = {};																								// Health rectangle
-	};
-	struct Collider {																											// A structure to hold collider data
-		SDL_Rect rect = {};																										// Collider rectangle
-	};
-	struct Damage {																												// A structure to hold damage data
-		int amount = DEFAULT_UNIT_DAMAGE;																						// Damage amount
-		Uint32 lastDamageDealtTime = STAT_CHANGE_COOLDOWN;																		// Last time damage was dealt
-	};
-	struct Speed {																												// A structure to hold speed data
-		float value = DEFAULT_UNIT_SPEED;																						// Speed value
-	};
-	struct Ammo {																												// A structure to hold ammo data
-		int currentAmmo = DEFAULT_AMMO;																							// Current ammo
-		int maxAmmo = DEFAULT_MAX_AMMO;																							// Maximum ammo
-		Uint32 lastFireTime = STAT_CHANGE_COOLDOWN;																				// Last time fired
-	};
-	struct Input {																												// A structure to hold input data
-		float x = {};																											// Input X
-		float y = {};																											// Input Y
-	};
-
-	struct ScoreValue {																											// Score value component
-		int amount = {};																										// score amount
-	};
-	ComponentMap<Input> inputs;																									// Input component storage
+	struct HealthBar { SDL_Rect backgroundRect = {}, healthRect = {}; };														// Health bar structure
+	struct Collider { SDL_Rect rect = {}; };																					// Collider structure
+	struct Damage { int amount = DEFAULT_UNIT_DAMAGE; Uint32 lastDamageDealtTime = STAT_CHANGE_COOLDOWN; };						// Damage structure
+	struct Speed { float value = DEFAULT_UNIT_SPEED; };																			// Speed structure
+	struct Ammo { int currentAmmo = DEFAULT_AMMO, maxAmmo = DEFAULT_MAX_AMMO; Uint32 lastFireTime = STAT_CHANGE_COOLDOWN; };	// Ammo structure
+	struct Input { float x = {}, y = {}; };																						// Input structure
+	struct ScoreValue { int amount = {}; };																						// Score value structure
 	struct Component																											// Component storage struct
 	{
 		ComponentMap<Transform> transforms;																						// Transform Component storage
@@ -149,31 +88,24 @@ private:
 		ComponentMap<Audio> audios;																								// Audio Component storage
 		ComponentMap<ScoreValue> scores;																						// Score Component storage
 	};
-	Component component;																										// Exposed Registry instance
-	std::map<std::string, Sprite> sprites;																						// Loaded sprite data keyed by name
-	std::map<std::string, Mix_Chunk*> sounds;																					// Loaded sounds
+	Component component;
+	std::map<std::string, Sprite> loadedSprites;																				// Loaded sprite data keyed by name
+	std::map<std::string, Mix_Chunk*> loadedSounds;																				// Loaded sounds
 	std::unordered_map<Entity, std::vector<Entity>> projectilePools;															// owner pool of projectile entity IDs
-	int nextEntityId;   																										// For generating unique entity IDs
-	struct Tile {
-		int x = {};																												// Tile X
-		int y = {};																												// Tile Y
-		std::string spriteName;																									// Sprite name
-	};
-	std::vector<Tile> groundTiles;																								// Ground tiles
+	struct Tile { int x = {}, y = {}; std::string spriteName; };																// Tile structure with position and sprite name
+	std::vector<Tile> groundTiles;																								// A list of ground tiles
+	std::unordered_set<Entity> activeEntities;																					// currently active entities
+	std::unordered_set<Entity> entitiesToDestroy;																				// entities queued for destruction
 	Uint32 now = {};																											// Current time in milliseconds
-	Uint32 score = {};																											// Player score
-	std::vector<Entity> entitiesToDestroy;																						// entities queued for destruction
-	Vector2f cameraPosition{ 0.0f, 0.0f };																						// camera world position
-	float cameraSmoothing = 6.0f;																								// camera smoothing factor
-	Uint32 currentLevel = 0;																									// current level index
-	bool levelChanging = false;																									// is level changing
-	Uint32 levelsCount = {};																									// total number of levels
-	bool gameCompleted = false;																									// is game completed
-	Uint32 worldWidth = {};																										// world width in pixels
-	Uint32 worldHeight = {};																									// world height in pixels
+	Uint32 score = {};																											// Global score
+	Vector2f cameraPosition = {};																								// camera world position 
+	float cameraSmoothing = CAMERA_SMOOTHING_FACTOR;																			// camera smoothing factor
+	Uint32 currentLevel = {}, levelsCount = {};																					// current level index and total levels
+	bool levelChanging = {}, gameCompleted = {};																				// level changing and game completed flags
+	Uint32 worldWidth = {}, worldHeight = {};																					// world width and height in pixels 
 	// PRIVATE METHODS
 	void flushDestroyedEntities();																								// actually remove enqueued entities
-	void destroyEntity(Entity entity);																							// Destroy entity
+	void destroyEntity(Entity entity) { entitiesToDestroy.insert(entity); }														// Destroy entity
 	void movementSystem(Component& com, float deltaTime = deltaTime);															// Movement system
 	void animationSystem(Component& com, float deltaTime = deltaTime);															// Animation system
 	void updateAnimationStates(Component& com, float deltaTime = deltaTime);													// Update animation states
@@ -196,7 +128,7 @@ private:
 	bool isValidComponent(Entity entity, ComponentMap<T>& comp);																// check if entity has valid component
 public:
 	~MyEngineSystem();																											// Destructor
-	Entity createEntity() { static Entity next = 1; return next++; };															// Create a new entity ID
+	Entity createEntity() { static Entity next{}; Entity id = next++; activeEntities.insert(id); return id; };				// Create a new entity ID
 	void loadSprite(const std::string& name, const std::string& filename, int frameW, int frameH, int frames, int startFrame = 0, bool loop = false, float scale = 1, SDL_Color transparent = { 255,255,255,255 });	// Load sprite from file
 	void loadSound(const std::string& name, const std::string& filename);														// Load sound
 	void render(std::shared_ptr<GraphicsEngine> gfx);																			// Render all entities
@@ -214,7 +146,7 @@ public:
 	void addComponentAmmoPickupTag(Entity entity) { component.ammoPickups[entity] = AmmoPickupTag(); }							// Set ammo pickup tag
 	void addComponentHealthPickupTag(Entity entity) { component.healthPickups[entity] = HealthPickupTag(); }					// Set health pickup tag
 	void addComponentEndLevelTag(Entity entity) { component.endLevels[entity] = EndLevelTag(); }								// Set end level tag	
-	void addComponentTransform(Entity entity, const Vector2f& position, float scale = DEFAULT_ENTITY_SCALE, int rotation = 0, int layer = 0, bool initialFlipH = false) { component.transforms[entity] = Transform{ position, position, scale, rotation, initialFlipH, false, position, true, layer }; }
+	void addComponentTransform(Entity entity, const Vector2f& position, float scale = DEFAULT_ENTITY_SCALE, int rotation = 0, int layer = 0, bool initialFlipH = false) { component.transforms[entity] = Transform{ position, position, position, scale, rotation, layer, initialFlipH, false, true }; }
 	void addComponentVelocity(Entity entity, float x = {}, float y = {}) { component.velocities[entity] = Velocity{ x, y }; }	// Set velocity	
 	void addComponentSpeed(Entity entity, float speed = DEFAULT_UNIT_SPEED) { component.speeds[entity] = Speed{ speed }; }		// Set speed
 	void addComponentCollider(Entity entity, float x, float y, int width = TILE_SIZE, int height = TILE_SIZE) { component.colliders[entity] = Collider{ SDL_Rect{ roundToInt(x), roundToInt(y), width, height } }; }	// Set collider

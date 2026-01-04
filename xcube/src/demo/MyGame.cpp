@@ -32,7 +32,7 @@ void MyGame::onLeftMouseButton() {
 	mousePressed = true;																							// set pressed
 	Vector2i mouseScreenPos = Vector2i(eventSystem->getMousePos().x, eventSystem->getMousePos().y);					// get mouse screen pos
 	Vector2f cameraPos = mySystem->getCameraPosition();																// get camera pos
-	Vector2f mouseWorldPos = Vector2f(float(mouseScreenPos.x) + cameraPos.x, float(mouseScreenPos.y) + cameraPos.y);	// convert to world pos
+	Vector2f mouseWorldPos = Vector2f(float(mouseScreenPos.x) + cameraPos.x, float(mouseScreenPos.y) + cameraPos.y);// convert to world pos
 	Vector2f playerPos = mySystem->getEntityPosition(playerEntityId);												// get player pos
 	mySystem->fireProjectile(playerEntityId, playerPos, mouseWorldPos);												// player shoot
 }
@@ -40,7 +40,7 @@ void MyGame::onLeftMouseButton() {
 void MyGame::update() {
 	if (mySystem->isGameCompleted()) gameWon = true;																// check win condition
 	if (eventSystem && !eventSystem->isPressed(Mouse::BTN_LEFT)) mousePressed = false;								// reset mouse pressed state
-	mySystem->update(FIXED_DT, playerEntityId);																		// movement system
+	mySystem->update(deltaTime, playerEntityId);																		// movement system
 	if (mySystem->isLevelChanging()) {																				// IF LEVEL CHANGING
 		blockIds.clear();																							// clear block IDs
 		loadMap();																									// load map
