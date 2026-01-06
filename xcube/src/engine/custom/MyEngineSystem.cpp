@@ -1,6 +1,6 @@
 #include "MyEngineSystem.h"																					// Include header
 
-MyEngineSystem::MyEngineSystem() {														// Start IDs from 1
+MyEngineSystem::MyEngineSystem() {																			// Constructor
 #ifdef __DEBUG																								// Debug info
 	debug("MyEngineSystem constructed");																	// Log construction
 #endif																										// Debug info
@@ -79,127 +79,125 @@ void MyEngineSystem::movementSystem(Component& com, float deltaTime)
 
 void MyEngineSystem::collisionSystem(Component& com, float deltaTime)
 {
-	for (auto& velocityComp : com.velocities) {																// FOR EACH VELOCITY
-		Entity entity = velocityComp.first;																	// get entity
-		Velocity velocity = velocityComp.second;															// get velocity
-		if (!isValidComponent(entity, com.transforms))continue;												// IF NO TRANSFORM, skip
-		if (!isValidComponent(entity, com.colliders)) continue;												// IF NO COLLIDER, skip
-		Transform& transform = com.transforms[entity];														// get transform
-		if (!transform.active) continue;																	// IF NOT ACTIVE, skip
-		Collider& collider = com.colliders[entity];															// get collider
-		std::vector<std::pair<Entity, SDL_Rect>> obstacles;													// vector of obstacles
-		obstacles.reserve(com.colliders.size());															// reserve space
-		for (auto& colliderComp : com.colliders) {															// FOR EACH OTHER COLLIDER
-			Entity other = colliderComp.first;																// get other entity
-			if (other == entity) continue;																	// IF SAME ENTITY, skip
-			if (isProjectileOwner(entity, other)) continue;													// IF PROJECTILE OWNER, skip
-			if (!isValidComponent(other, com.transforms)) continue;											// IF NO TRANSFORM, skip
-			const Transform& otherTransform = com.transforms[other];										// get other transform
-			if (!otherTransform.active) continue;															// IF NOT ACTIVE, skip
-			obstacles.emplace_back(other, colliderComp.second.rect);										// add to obstacles
+	for (auto& velocityComp : com.velocities) {																					// FOR EACH VELOCITY
+		Entity entity = velocityComp.first;																						// get entity
+		Velocity velocity = velocityComp.second;																				// get velocity
+		if (!isValidComponent(entity, com.transforms))continue;																	// IF NO TRANSFORM, skip
+		if (!isValidComponent(entity, com.colliders)) continue;																	// IF NO COLLIDER, skip
+		Transform& transform = com.transforms[entity];																			// get transform
+		if (!transform.active) continue;																						// IF NOT ACTIVE, skip
+		Collider& collider = com.colliders[entity];																				// get collider
+		std::vector<std::pair<Entity, SDL_Rect>> obstacles;																		// vector of obstacles
+		obstacles.reserve(com.colliders.size());																				// reserve space
+		for (auto& colliderComp : com.colliders) {																				// FOR EACH OTHER COLLIDER
+			Entity other = colliderComp.first;																					// get other entity
+			if (other == entity) continue;																						// IF SAME ENTITY, skip
+			if (isProjectileOwner(entity, other)) continue;																		// IF PROJECTILE OWNER, skip
+			if (!isValidComponent(other, com.transforms)) continue;																// IF NO TRANSFORM, skip
+			const Transform& otherTransform = com.transforms[other];															// get other transform
+			if (!otherTransform.active) continue;																				// IF NOT ACTIVE, skip
+			obstacles.emplace_back(other, colliderComp.second.rect);															// add to obstacles
 		}
-		SDL_Rect rectX = collider.rect;																		// copy collider rect
-		rectX.x = roundToInt(transform.newPosition.x);														// update x position
-		for (const auto& obstacle : obstacles) {															// FOR EACH OBSTACLE
-			const Entity other = obstacle.first;															// get other entity
-			const SDL_Rect& obstacleRect = obstacle.second;													// get obstacle rect
-			if (SDL_HasIntersection(&rectX, &obstacleRect) == SDL_TRUE) {									// IF INTERSECTING
-				processCollisionEntities(com, entity, other, now);											// process collision
+		SDL_Rect rectX = collider.rect;																							// copy collider rect
+		rectX.x = roundToInt(transform.newPosition.x);																			// update x position
+		for (const auto& obstacle : obstacles) {																				// FOR EACH OBSTACLE
+			const Entity other = obstacle.first;																				// get other entity
+			const SDL_Rect& obstacleRect = obstacle.second;																		// get obstacle rect
+			if (SDL_HasIntersection(&rectX, &obstacleRect) == SDL_TRUE) {														// IF INTERSECTING
+				processCollisionEntities(com, entity, other, now);																// process collision
 				if (getEntityTag(entity) == EntityTag::PROJECTILE || getEntityTag(other) == EntityTag::PROJECTILE) continue;	// IF PROJECTILE, skip position adjustment
-				if (getEntityTag(entity) == EntityTag::ENDLEVEL || getEntityTag(other) == EntityTag::ENDLEVEL) continue;	// IF END LEVEL, skip position adjustment
-				if (velocity.x > 0.0f) transform.newPosition.x = float(obstacleRect.x - rectX.w);			// IF MOVING RIGHT, adjust position
-				else transform.newPosition.x = float(obstacleRect.x + obstacleRect.w);						// ELSE ADJUST LEFT
-				velocity.x = 0.0f;																			// stop horizontal movement
-				collider.rect.x = roundToInt(transform.newPosition.x);										// update collider position
-				rectX.x = collider.rect.x;																	// update rect x
-				break;																						// exit loop
+				if (getEntityTag(entity) == EntityTag::ENDLEVEL || getEntityTag(other) == EntityTag::ENDLEVEL) continue;		// IF END LEVEL, skip position adjustment
+				if (velocity.x > 0.0f) transform.newPosition.x = float(obstacleRect.x - rectX.w);								// IF MOVING RIGHT, adjust position
+				else transform.newPosition.x = float(obstacleRect.x + obstacleRect.w);											// ELSE ADJUST LEFT
+				velocity.x = 0.0f;																								// stop horizontal movement
+				collider.rect.x = roundToInt(transform.newPosition.x);															// update collider position
+				break;																											// exit loop
 			}
 		}
-		transform.position.x = transform.newPosition.x;														// update position x
-		SDL_Rect rectY = collider.rect;																		// copy collider rect
-		rectY.y = roundToInt(transform.newPosition.y);														// update y position
-		for (const auto& obstacle : obstacles) {															// FOR EACH OBSTACLE
-			const Entity other = obstacle.first;															// get other entity
-			const SDL_Rect& obstacleRect = obstacle.second;													// get obstacle rect
-			if (SDL_HasIntersection(&rectY, &obstacleRect) == SDL_TRUE) {									// IF INTERSECTING
-				processCollisionEntities(com, entity, other, now);											// process collision
+		transform.position.x = transform.newPosition.x;																			// update position x
+		SDL_Rect rectY = collider.rect;																							// copy collider rect
+		rectY.y = roundToInt(transform.newPosition.y);																			// update y position
+		for (const auto& obstacle : obstacles) {																				// FOR EACH OBSTACLE
+			const Entity other = obstacle.first;																				// get other entity
+			const SDL_Rect& obstacleRect = obstacle.second;																		// get obstacle rect
+			if (SDL_HasIntersection(&rectY, &obstacleRect) == SDL_TRUE) {														// IF INTERSECTING
+				processCollisionEntities(com, entity, other, now);																// process collision
 				if (getEntityTag(entity) == EntityTag::PROJECTILE || getEntityTag(other) == EntityTag::PROJECTILE) continue;	// IF PROJECTILE, skip position adjustment
-				if (getEntityTag(entity) == EntityTag::ENDLEVEL || getEntityTag(other) == EntityTag::ENDLEVEL) continue;	// IF END LEVEL, skip position adjustment
-				if (velocity.y > 0.0f) transform.newPosition.y = float(obstacleRect.y - rectY.h);			// IF MOVING DOWN, adjust position
-				else transform.newPosition.y = float(obstacleRect.y + obstacleRect.h);						// ELSE ADJUST UP
-				velocity.y = 0.0f;																			// stop vertical movement
-				collider.rect.y = roundToInt(transform.newPosition.y);										// update collider position
-				rectY.y = collider.rect.y;															 		// update rect y
-				break;																						// exit loop
+				if (getEntityTag(entity) == EntityTag::ENDLEVEL || getEntityTag(other) == EntityTag::ENDLEVEL) continue;		// IF END LEVEL, skip position adjustment
+				if (velocity.y > 0.0f) transform.newPosition.y = float(obstacleRect.y - rectY.h);								// IF MOVING DOWN, adjust position
+				else transform.newPosition.y = float(obstacleRect.y + obstacleRect.h);											// ELSE ADJUST UP
+				velocity.y = 0.0f;																								// stop vertical movement
+				collider.rect.y = roundToInt(transform.newPosition.y);															// update collider position
+				break;																											// exit loop
 			}
 		}
-		transform.position.y = transform.newPosition.y;														// update position y
-		collider.rect.x = roundToInt(transform.position.x);													// update collider position x
-		collider.rect.y = roundToInt(transform.position.y);													// update collider position y
-		com.velocities[entity] = velocity;																	// update velocity
+		transform.position.y = transform.newPosition.y;																			// update position y
+		collider.rect.x = roundToInt(transform.position.x);																		// update collider position x
+		collider.rect.y = roundToInt(transform.position.y);																		// update collider position y
+		com.velocities[entity] = velocity;																						// update velocity to reflect any changes
 	}
 }
 
 void MyEngineSystem::processCollisionEntities(Component& com, Entity primary, Entity other, Uint32 now)
 {
-	if ((getEntityTag(primary) == EntityTag::ENDLEVEL && getEntityTag(other) == EntityTag::PC)				// IF PRIMARY IS ENDLEVEL AND OTHER IS PC
-		|| (getEntityTag(other) == EntityTag::ENDLEVEL && getEntityTag(primary) == EntityTag::PC)) {		// OR VICE VERSA
-		Entity player = (getEntityTag(primary) == EntityTag::PC) ? primary : other;							// get player entity
-		Entity endTrigger = (getEntityTag(primary) == EntityTag::ENDLEVEL) ? primary : other;				// get end level trigger entity
-		if (isValidComponent(endTrigger, com.audios) && !com.audios[endTrigger].attackingSound.empty())		// IF END TRIGGER HAS AUDIO COMPONENT AND ATTACKING SOUND
-			playAudio(com.audios[endTrigger].attackingSound, DEFAULT_SFX_VOLUME);							// play sound
-		if (currentLevel + 1 >= levelsCount) {																// IF LAST LEVEL 
-			if (getNPCCount() <= 0) {																		// IF NO NPCS LEFT
-				gameCompleted = true;																		// set game completed
-				return;																						// return
+	if ((getEntityTag(primary) == EntityTag::ENDLEVEL && getEntityTag(other) == EntityTag::PC)											// IF PRIMARY IS ENDLEVEL AND OTHER IS PC
+		|| (getEntityTag(other) == EntityTag::ENDLEVEL && getEntityTag(primary) == EntityTag::PC)) {									// OR VICE VERSA
+		Entity player = (getEntityTag(primary) == EntityTag::PC) ? primary : other;														// get player entity
+		Entity endTrigger = (getEntityTag(primary) == EntityTag::ENDLEVEL) ? primary : other;											// get end level trigger entity
+		if (currentLevel + 1 >= levelsCount) {																							// IF LAST LEVEL 
+			if (getNPCCount() <= 0) {																									// IF NO NPCS LEFT
+				gameCompleted = true;																									// set game completed
+				return;																													// return
 			}
-			else return;																					// return
+			else return;																												// return
 		}
-		++currentLevel;																						// increment level									
-		levelChanging = true;																				// set level changing
-		clearLevelExcept(player);																			// clear level except player
-		return;																								// return
+		++currentLevel;																													// increment level									
+		levelChanging = true;																											// set level changing
+		if (isValidComponent(endTrigger, com.audios) && !com.audios[endTrigger].attackingSound.empty())									// IF END TRIGGER HAS AUDIO COMPONENT AND ATTACKING SOUND
+			playAudio(com.audios[endTrigger].attackingSound, DEFAULT_SFX_VOLUME);														// play sound
+		clearLevelExcept(player);																										// clear level except player
+		return;																															// return
 	}
-	Entity attacker = 0, victim = 0;																		// attacker and victim
-	if (getEntityTag(primary) == EntityTag::AMMO) { increaseAmmo(primary, other); return; }					// IF PRIMARY IS AMMO, increase ammo and return
-	else if (getEntityTag(other) == EntityTag::AMMO) { increaseAmmo(other, primary); return; }				// IF OTHER IS AMMO, increase ammo and return
-	else if (getEntityTag(primary) == EntityTag::HEALTH && getEntityTag(other) == EntityTag::NPC			// IF ATTACKER IS HEALTH AND VICTIM IS NPC
-		|| getEntityTag(primary) == EntityTag::NPC && getEntityTag(other) == EntityTag::HEALTH) return;		// OR VICE VERSA, return
-	else if (getEntityTag(primary) == EntityTag::HEALTH) {													// IF ATTACKER IS HEALTH PICKUP
-		Health& health = com.healths[other];																// get health of victim	
-		if (health.currentHealth >= health.maxHealth) return;												// IF HEALTH IS MAX, return
-		attacker = primary; victim = other;																	// set attacker and victim
+	Entity attacker = 0, victim = 0;																									// attacker and victim
+	if (getEntityTag(primary) == EntityTag::AMMO) { increaseAmmo(primary, other); return; }												// IF PRIMARY IS AMMO, increase ammo and return
+	else if (getEntityTag(other) == EntityTag::AMMO) { increaseAmmo(other, primary); return; }											// IF OTHER IS AMMO, increase ammo and return
+	else if (getEntityTag(primary) == EntityTag::HEALTH && getEntityTag(other) == EntityTag::NPC										// IF ATTACKER IS HEALTH AND VICTIM IS NPC
+		|| getEntityTag(primary) == EntityTag::NPC && getEntityTag(other) == EntityTag::HEALTH) return;									// OR VICE VERSA, return
+	else if (getEntityTag(primary) == EntityTag::HEALTH) {																				// IF ATTACKER IS HEALTH PICKUP
+		Health& health = com.healths[other];																							// get health of victim	
+		if (health.currentHealth >= health.maxHealth) return;																			// IF HEALTH IS MAX, return
+		attacker = primary; victim = other;																								// set attacker and victim
 	}
-	else if (getEntityTag(other) == EntityTag::HEALTH) {													// IF VICTIM IS HEALTH PICKUP
-		Health& health = com.healths[primary];																// get health of attacker
-		if (health.currentHealth >= health.maxHealth) return;												// IF HEALTH IS MAX, return
-		attacker = other; victim = primary;																	// set attacker and victim
+	else if (getEntityTag(other) == EntityTag::HEALTH) {																				// IF VICTIM IS HEALTH PICKUP
+		Health& health = com.healths[primary];																							// get health of attacker
+		if (health.currentHealth >= health.maxHealth) return;																			// IF HEALTH IS MAX, return
+		attacker = other; victim = primary;																								// set attacker and victim
 	}
-	else if (getEntityTag(primary) == EntityTag::PROJECTILE) { attacker = primary; victim = other; }		// IF PRIMARY IS PROJECTILE, set attacker and victim
-	else if (getEntityTag(other) == EntityTag::PROJECTILE) { attacker = other; victim = primary; }			// IF OTHER IS PROJECTILE, set attacker and victim
+	else if (getEntityTag(primary) == EntityTag::PROJECTILE) { attacker = primary; victim = other; }									// IF PRIMARY IS PROJECTILE, set attacker and victim
+	else if (getEntityTag(other) == EntityTag::PROJECTILE) { attacker = other; victim = primary; }										// IF OTHER IS PROJECTILE, set attacker and victim
 	else if (getEntityTag(primary) == EntityTag::NPC && getEntityTag(other) == EntityTag::PC) { attacker = primary; victim = other; }	// IF PRIMARY IS NPC AND OTHER IS PC, set attacker and victim
 	else if (getEntityTag(other) == EntityTag::NPC && getEntityTag(primary) == EntityTag::PC) { attacker = other; victim = primary; }	// IF OTHER IS NPC AND PRIMARY IS PC, set attacker and victim
-	if (attacker <= 0 && victim < 0) return;																// IF NO ATTACKER OR VICTIM, return
-	std::string audioString = {};																			// audio string
-	if (!isValidComponent(attacker, com.damages)) return;													// IF ATTACKER HAS NO DAMAGE COMPONENT, return
-	Damage& damage = com.damages[attacker];																	// get damage component
-	if (now - damage.lastDamageDealtTime < STAT_CHANGE_COOLDOWN) return;									// IF WITHIN COOLDOWN, return
-	if (damage.amount > 0) {													 							// IF DAMAGE AMOUNT > 0
-		if (isValidComponent(victim, com.audios)) {															// IF VICTIM HAS AUDIO COMPONENT								
-			audioString = com.audios[victim].damageSound;													// get damage sound
-			if (!audioString.empty() && loadedSounds.count(audioString)) playAudio(audioString, DEFAULT_SFX_VOLUME);	// play sound
+	if (attacker <= 0 && victim < 0) return;																							// IF NO ATTACKER OR VICTIM, return
+	std::string audioString = {};																										// audio string
+	if (!isValidComponent(attacker, com.damages)) return;																				// IF ATTACKER HAS NO DAMAGE COMPONENT, return
+	Damage& damage = com.damages[attacker];																								// get damage component
+	if (now - damage.lastDamageDealtTime < STAT_CHANGE_COOLDOWN) return;																// IF WITHIN COOLDOWN, return
+	if (damage.amount > 0) {													 														// IF DAMAGE AMOUNT > 0
+		if (isValidComponent(victim, com.audios)) {																						// IF VICTIM HAS AUDIO COMPONENT								
+			audioString = com.audios[victim].damageSound;																				// get damage sound
+			if (!audioString.empty() && loadedSounds.count(audioString)) playAudio(audioString, DEFAULT_SFX_VOLUME);					// play sound
 		}
 	}
-	if (isValidComponent(attacker, com.audios)) {															// IF ATTACKER HAS AUDIO COMPONENT
-		audioString = com.audios[attacker].attackingSound;													// get attacking sound
-		if (!audioString.empty() && loadedSounds.count(audioString)) playAudio(audioString, DEFAULT_SFX_VOLUME);	// play sound
+	if (isValidComponent(attacker, com.audios)) {																						// IF ATTACKER HAS AUDIO COMPONENT
+		audioString = com.audios[attacker].attackingSound;																				// get attacking sound
+		if (!audioString.empty() && loadedSounds.count(audioString)) playAudio(audioString, DEFAULT_SFX_VOLUME);						// play sound
 	}
-	changeEntityHealth(victim, -damage.amount);																// reduce victim health
-	if (getEntityTag(attacker) == EntityTag::NPC) changeEntityHealth(attacker, damage.amount / 2);			// IF ATTACKER IS NPC, heal on hit
-	damage.lastDamageDealtTime = now;																		// update last damage time
-	if (getEntityTag(attacker) == EntityTag::PROJECTILE) deactivateProjectile(attacker);					// IF FOUND, deactivate projectile
-	if (getEntityTag(attacker) == EntityTag::HEALTH) destroyEntity(attacker);								// IF HEALTH PICKUP, destroy entity
-	return;																									// return
+	changeEntityHealth(victim, -damage.amount);																							// reduce victim health
+	if (getEntityTag(attacker) == EntityTag::NPC) changeEntityHealth(attacker, damage.amount / 2);										// IF ATTACKER IS NPC, heal on hit
+	damage.lastDamageDealtTime = now;																									// update last damage time
+	if (getEntityTag(attacker) == EntityTag::PROJECTILE) deactivateProjectile(attacker);												// IF FOUND, deactivate projectile
+	if (getEntityTag(attacker) == EntityTag::HEALTH) destroyEntity(attacker);															// IF HEALTH PICKUP, destroy entity
+	return;																																// return
 }
 
 void MyEngineSystem::updateAnimationStates(Component& com, float deltaTime)
@@ -246,7 +244,7 @@ void MyEngineSystem::updateAnimationStates(Component& com, float deltaTime)
 		animation.loop = true;																				// set loop to true
 		animation.frameCount = 1;																			// set frame count to 1
 		if (!isValidComponent(entity, com.sprites)) continue; 												// IF SPRITE FOUND
-		auto foundSprite = loadedSprites.find(newAnim);															// find Sprite by animation name
+		auto foundSprite = loadedSprites.find(newAnim);														// find Sprite by animation name
 		animation.loop = foundSprite->second.loop;															// set loop from sprite
 		animation.frameCount = foundSprite->second.frameCount;												// set frame count from sprite
 	}
@@ -308,82 +306,82 @@ void MyEngineSystem::finaliseDeath(Entity entity)
 
 void MyEngineSystem::render(std::shared_ptr<GraphicsEngine> gfx)
 {
-	if (!gfx) return;																						// IF NO GRAPHICS ENGINE, return
-	updateCamera(gfx);																						// update camera position
-	renderTiles(gfx);																						// render background tiles first, cheap way to handle layers
-	struct RenderItem { Entity entity; Sprite* sprite; Transform* transform; Animation* anim; int layer; };	// render item (with layer)
-	std::vector<RenderItem> list;																			// list of render items
-	list.reserve(component.sprites.size());																	// reserve space
-	for (auto& spriteComp : component.sprites) {															// FOR EACH SPRITE COMPONENT
-		Entity entity = spriteComp.first;																	// get entity by the first part of the pair
-		Sprite& sprite = spriteComp.second;																	// get sprite by the second part of the pair
-		if (!isValidComponent(entity, component.transforms)) continue; 										// IF NO TRANSFORM, skip
-		Transform& transform = component.transforms[entity];												// get transform
-		if (!transform.active) continue;																	// IF NOT ACTIVE, skip
-		Animation* anim = nullptr;																			// animation pointer
-		if (isValidComponent(entity, component.animations)) anim = &component.animations[entity];			// IF HAS ANIMATION, get pointer
-		list.push_back({ entity, &sprite, &transform, anim, transform.layer });								// add to render list with layer	
+	if (!gfx) return;																											// IF NO GRAPHICS ENGINE, return
+	updateCamera(gfx);																											// update camera position
+	renderTiles(gfx);																											// render background tiles first, cheap way to handle layers
+	struct RenderItem { Entity entity; Sprite* sprite; Transform* transform; Animation* anim; int layer; };						// render item (with layer)
+	std::vector<RenderItem> list;																								// list of render items
+	list.reserve(component.sprites.size());																						// reserve space from sprite count
+	for (auto& spriteComp : component.sprites) {																				// FOR EACH SPRITE COMPONENT
+		Entity entity = spriteComp.first;																						// get entity by the first part of the pair
+		Sprite& sprite = spriteComp.second;																						// get sprite by the second part of the pair
+		if (!isValidComponent(entity, component.transforms)) continue; 															// IF NO TRANSFORM, skip
+		Transform& transform = component.transforms[entity];																	// get transform
+		if (!transform.active) continue;																						// IF NOT ACTIVE, skip
+		Animation* anim = nullptr;																								// animation pointer
+		if (isValidComponent(entity, component.animations)) anim = &component.animations[entity];								// IF HAS ANIMATION, get pointer
+		list.push_back({ entity, &sprite, &transform, anim, transform.layer });													// add to render list with layer	
 	}
-	std::stable_sort(list.begin(), list.end(), [](const RenderItem& a, const RenderItem& b) {				// sort by layer and Y position
-		if (a.layer != b.layer) return a.layer < b.layer;													// sort by layer first
-		return a.transform->position.y < b.transform->position.y;											// then by Y position
+	std::stable_sort(list.begin(), list.end(), [](const RenderItem& a, const RenderItem& b) {									// sort render list
+		if (a.layer != b.layer) return a.layer < b.layer;																		// IF LAYERS DIFFER, sort by layer
+		return a.transform->position.y < b.transform->position.y;																// return by Y position
 		});
-	for (auto& rendered : list) {																			// FOR EACH RENDER ITEM
-		Sprite* spritePtr = rendered.sprite;																// default sprite pointer
-		int currentFrame = {};																				// zero intialise current frame
-		if (rendered.anim) {																				// IF HAS ANIMATION
-			if (loadedSprites.find(rendered.anim->name) != loadedSprites.end())											// IF SPRITE FOUND BY ANIMATION NAME
-				spritePtr = &loadedSprites[rendered.anim->name];													// set sprite pointer to that sprite
-			currentFrame = rendered.anim->currentFrame;														// get current frame from animation
+	for (auto& rendered : list) {																								// FOR EACH RENDER ITEM
+		Sprite* spritePtr = rendered.sprite;																					// default sprite pointer
+		int currentFrame = {};																									// zero intialise current frame
+		if (rendered.anim) {																									// IF HAS ANIMATION
+			if (loadedSprites.find(rendered.anim->name) != loadedSprites.end())													// IF SPRITE FOUND BY ANIMATION NAME
+				spritePtr = &loadedSprites[rendered.anim->name];																// set sprite pointer to that sprite
+			currentFrame = rendered.anim->currentFrame;																			// get current frame from animation
 		}
-		Sprite& sprite = *spritePtr;																		// get sprite	
-		int frameIndex = sprite.startFrame + currentFrame;													// calculate frame index
-		int columns = 1;																					// default columns
-		if (sprite.frameW > 0) {																			// IF FRAME WIDTH > 0
-			columns = sprite.textureWidth / sprite.frameW;													// calculate columns
-			if (columns <= 0) columns = 1;																	// prevent division by zero
+		Sprite& sprite = *spritePtr;																							// get sprite reference
+		int frameIndex = sprite.startFrame + currentFrame;																		// calculate frame index
+		int columns = 1;																										// default columns
+		if (sprite.frameW > 0) {																								// IF FRAME WIDTH > 0
+			columns = sprite.textureWidth / sprite.frameW;																		// calculate columns
+			if (columns <= 0) columns = 1;																						// prevent division by zero
 		}
-		int xPos = (frameIndex % columns) * sprite.frameW;													// get X position in texture sprite sheet
-		SDL_Rect src = { xPos, 0, sprite.frameW, sprite.frameH };											// source rectangle
-		int width = roundToInt(sprite.frameW * rendered.transform->scale);									// scaled width
-		int height = roundToInt(sprite.frameH * rendered.transform->scale);									// scaled height
-		int posX = roundToInt(rendered.transform->position.x - cameraPosition.x);							// screen X
-		int posY = roundToInt(rendered.transform->position.y - cameraPosition.y);							// screen Y
-		SDL_Rect dst = { posX, posY, width, height };														// destination rectangle
+		int xPos = (frameIndex % columns) * sprite.frameW;																		// get X position in texture sprite sheet
+		SDL_Rect src = { xPos, 0, sprite.frameW, sprite.frameH };																// source rectangle
+		int width = roundToInt(sprite.frameW * rendered.transform->scale);														// scaled width
+		int height = roundToInt(sprite.frameH * rendered.transform->scale);														// scaled height
+		int posX = roundToInt(rendered.transform->position.x - cameraPosition.x);												// screen X
+		int posY = roundToInt(rendered.transform->position.y - cameraPosition.y);												// screen Y
+		SDL_Rect dst = { posX, posY, width, height };																			// destination rectangle
 		setEntityColliderRect(rendered.entity, rendered.transform->position.x, rendered.transform->position.y, width, height);	// set collider rect
-		SDL_RendererFlip flip = SDL_FLIP_NONE;																// no flip
-		if (rendered.transform->flipH) flip = SDL_FLIP_HORIZONTAL;											// horizontal flip
-		double angle = {};																					// zero intialise angle
-		if (getEntityTag(rendered.entity) == EntityTag::PROJECTILE) {										// IF PROJECTILE
-			if (isValidComponent(rendered.entity, component.velocities)) {									// IF HAS VELOCITY
-				Velocity& velocity = component.velocities[rendered.entity];									// get velocity
-				angle = std::atan2(velocity.y, velocity.x) * (180.0 / M_PI) - 90.0;							// calculate angle in degrees
+		SDL_RendererFlip flip = SDL_FLIP_NONE;																					// no flip
+		if (rendered.transform->flipH) flip = SDL_FLIP_HORIZONTAL;																// horizontal flip
+		double angle = {};																										// zero intialise angle
+		if (getEntityTag(rendered.entity) == EntityTag::PROJECTILE) {															// IF PROJECTILE
+			if (isValidComponent(rendered.entity, component.velocities)) {														// IF HAS VELOCITY
+				Velocity& velocity = component.velocities[rendered.entity];														// get velocity
+				angle = std::atan2(velocity.y, velocity.x) * (180.0 / M_PI) - 90.0;												// calculate angle in degrees
 			}
 		}
-		gfx->drawTexture(sprite.texture, &src, &dst, angle, nullptr, flip);									// draw texture
-		int healthBarposY = posY - (height / 2);															// adjust posY for bar rendering
-		renderHealthBar(gfx, rendered.entity, posX, healthBarposY, sprite.frameW, sprite.frameH);			// render health bar
+		gfx->drawTexture(sprite.texture, &src, &dst, angle, nullptr, flip);														// draw texture
+		int healthBarposY = posY - (height / 2);																				// adjust posY for bar rendering
+		renderHealthBar(gfx, rendered.entity, posX, healthBarposY, sprite.frameW, sprite.frameH);								// render health bar
 	}
 }
 
 void MyEngineSystem::renderHealthBar(std::shared_ptr<GraphicsEngine> gfx, Entity entity, int posX, int posY, int width, int height)
 {
-	if (!isValidComponent(entity, component.healthBars)) return;											// IF NO HEALTH BAR, return
-	if (!isValidComponent(entity, component.healths)) return;												// IF NO HEALTH, return
-	const HealthBar& healthBar = component.healthBars[entity];												// get health bar
-	const Health& health = component.healths[entity];														// get health
-	float percent = float(health.currentHealth) / float(health.maxHealth);									// calculate percentage
-	gfx->setDrawColor({ 255, 0, 0, 255 });																	// set draw color to red
-	gfx->fillRect(posX, posY, width, BAR_HEIGHT);				 											// draw background
-	SDL_Color fgColor = { 0, 255, 0, 255 };																	// foreground color green
-	gfx->setDrawColor(fgColor);																				// set draw color to foreground color
-	int fillW = roundToInt(width * percent);																// calculate fill width
-	gfx->fillRect(posX, posY, fillW, BAR_HEIGHT);															// draw foreground
+	if (!isValidComponent(entity, component.healthBars)) return;																	// IF NO HEALTH BAR, return
+	if (!isValidComponent(entity, component.healths)) return;																		// IF NO HEALTH, return
+	const HealthBar& healthBar = component.healthBars[entity];																		// get health bar
+	const Health& health = component.healths[entity];																				// get health
+	float percent = float(health.currentHealth) / float(health.maxHealth);															// calculate percentage
+	gfx->setDrawColor({ 255, 0, 0, 255 });																							// set draw color to red
+	gfx->fillRect(posX, posY, width, BAR_HEIGHT);				 																	// draw background
+	SDL_Color fgColor = { 0, 255, 0, 255 };																							// foreground color green
+	gfx->setDrawColor(fgColor);																										// set draw color to foreground color
+	int fillW = roundToInt(width * percent);																						// calculate fill width
+	gfx->fillRect(posX, posY, fillW, BAR_HEIGHT);																					// draw foreground
 }
 
 void MyEngineSystem::loadSprite(const std::string& name, const std::string& filename, int frameW, int frameH, int frames, int startFrame, bool loop, float scale, SDL_Color transparent)
 {
-	if (loadedSprites.count(name)) return;																		// IF SPRITE ALREADY LOADED, return
+	if (loadedSprites.count(name)) return;																	// IF SPRITE ALREADY LOADED, return
 	SDL_Texture* texture = ResourceManager::loadTexture(filename, transparent);								// load texture
 	if (!texture) return;																					// IF FAILED TO LOAD TEXTURE, return
 	int width = {}, height = {};																			// zero initialise width and height
@@ -398,13 +396,13 @@ void MyEngineSystem::loadSprite(const std::string& name, const std::string& file
 	sprite.startFrame = startFrame;																			// set start frame
 	sprite.loop = loop;																						// set loop
 	sprite.scale = scale;																					// set scale
-	loadedSprites[name] = std::move(sprite);																		// store Sprite
+	loadedSprites[name] = std::move(sprite);																// store Sprite
 }
 
 void MyEngineSystem::attachSprite(Entity entity, const std::string& spriteName)
 {
-	auto sprite = loadedSprites.find(spriteName);																	// find Sprite
-	if (sprite == loadedSprites.end()) return;																	// IF SPRITE NOT FOUND, return
+	auto sprite = loadedSprites.find(spriteName);															// find Sprite
+	if (sprite == loadedSprites.end()) return;																// IF SPRITE NOT FOUND, return
 	component.sprites[entity] = sprite->second;																// attach sprite
 	if (!isValidComponent(entity, component.animations)) {													// IF NO ANIMATION
 		Animation anim;																						// create Animation
@@ -442,8 +440,8 @@ void MyEngineSystem::renderTiles(std::shared_ptr<GraphicsEngine> gfx) {
 	if (!gfx) return;																						// IF NO GRAPHICS ENGINE, return
 	Dimension2i window = gfx->getCurrentWindowSize();														// get window size
 	for (const Tile& tile : groundTiles) {																	// FOR EACH TILE
-		if (loadedSprites.find(tile.spriteName) == loadedSprites.end()) continue;										// IF SPRITE NOT FOUND, skip
-		const Sprite& sprite = loadedSprites[tile.spriteName];													// get Sprite
+		if (loadedSprites.find(tile.spriteName) == loadedSprites.end()) continue;							// IF SPRITE NOT FOUND, skip
+		const Sprite& sprite = loadedSprites[tile.spriteName];												// get Sprite
 		int screenX = roundToInt(tile.x - cameraPosition.x);												// screen X
 		int screenY = roundToInt(tile.y - cameraPosition.y);												// screen Y
 		SDL_Rect src = { 0, 0, sprite.frameW, sprite.frameH };												// source rectangle
@@ -482,8 +480,8 @@ void MyEngineSystem::handleDeath(Entity entity, Health& health) {
 	anim.loop = false;																						// set no loop
 	anim.currentFrame = {};																					// reset current frame
 	if (anim.frameDuration <= 0.0f) anim.frameDuration = 0.1f;												// IF FRAME DURATION <= 0, set to default to avoid division by zero
-	auto foundSprite = loadedSprites.find(newAnim);																// find sprite
-	if (foundSprite != loadedSprites.end())																		// IF FOUND
+	auto foundSprite = loadedSprites.find(newAnim);															// find sprite
+	if (foundSprite != loadedSprites.end())																	// IF FOUND
 	{
 		anim.frameCount = foundSprite->second.frameCount;													// set frame count from sprite
 		anim.loop = foundSprite->second.loop;																// set loop from sprite
@@ -493,21 +491,21 @@ void MyEngineSystem::handleDeath(Entity entity, Health& health) {
 }
 
 void MyEngineSystem::loadSound(const std::string& name, const std::string& filename) {
-	if (loadedSounds.count(name)) return;																			// already loaded
+	if (loadedSounds.count(name)) return;																	// already loaded
 	Mix_Chunk* chunk = ResourceManager::loadSound(filename);												// load sound
 	if (!chunk) return;																						// failed to load
-	loadedSounds[name] = chunk;																					// store sound
+	loadedSounds[name] = chunk;																				// store sound
 }
 
 void MyEngineSystem::playAudio(const std::string& name, int volume, int loops, int channel)
 {
-	auto sound = loadedSounds.find(name);																			// find sound from map
+	auto sound = loadedSounds.find(name);																	// find sound from map
 	Mix_Chunk* chunk = nullptr;																				// sound chunk pointer
-	if (sound != loadedSounds.end()) chunk = sound->second;														// IF FOUND, get chunk
+	if (sound != loadedSounds.end()) chunk = sound->second;													// IF FOUND, get chunk
 	else {																									// ELSE NOT FOUND
 		chunk = ResourceManager::loadSound(name);															// try to load sound
 		if (!chunk) return;																					// IF FAILED TO LOAD, return
-		loadedSounds[name] = chunk;																				// store sound
+		loadedSounds[name] = chunk;																			// store sound
 	}
 	if (volume >= 0) {																						// IF VOLUME SPECIFIED
 		int vol = volume;																					// set volume
@@ -529,7 +527,7 @@ void MyEngineSystem::initProjectilePool(Entity owner, size_t poolSize)
 		Entity entity = createEntity();																		// create entity
 		pool.push_back(entity);																				// add to pool
 		attachSprite(entity, "bullet");
-		auto foundSprite = loadedSprites.find("bullet");															// find block sprit
+		auto foundSprite = loadedSprites.find("bullet");													// find block sprit
 		int width = TILE_SIZE, height = TILE_SIZE;															// default dimensions
 		float scale = DEFAULT_ENTITY_SCALE;																	// default dimensions
 		scale = foundSprite->second.scale;																	// get scale

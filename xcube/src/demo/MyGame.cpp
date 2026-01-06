@@ -14,6 +14,11 @@ MyGame::MyGame() : AbstractGame(), numAmmo(5), numHealth(3), gameWon(false) {
 	loadMap();																										// Load map
 }
 
+MyGame::~MyGame() {
+	otherEntities.clear();																							// Clear other entity IDs
+	blockIds.clear();																								// Clear block IDs
+}
+
 void MyGame::handleKeyEvents() {
 	if (!mySystem) return;																							// safety check
 	if (playerEntityId < 0) return;																					// player not spawned
@@ -40,9 +45,10 @@ void MyGame::onLeftMouseButton() {
 void MyGame::update() {
 	if (mySystem->isGameCompleted()) gameWon = true;																// check win condition
 	if (eventSystem && !eventSystem->isPressed(Mouse::BTN_LEFT)) mousePressed = false;								// reset mouse pressed state
-	mySystem->update(deltaTime, playerEntityId);																		// movement system
+	mySystem->update(deltaTime, playerEntityId);																	// movement system
 	if (mySystem->isLevelChanging()) {																				// IF LEVEL CHANGING
 		blockIds.clear();																							// clear block IDs
+		otherEntities.clear();																						// clear other entity IDs
 		loadMap();																									// load map
 		mySystem->setLevelChanging(false);																			// reset level changing flag
 	}
@@ -140,59 +146,59 @@ void MyGame::loadResources() {
 }
 
 void MyGame::loadMap() {
-	for (int row = 0; row < LEVEL_ROWS; ++row) {																// FOR EACH ROW
-		for (int col = 0; col < LEVEL_COLS; ++col) {															// FOR EACH COLUMN
-			int posX = col * TILE_SIZE;																			// position x
-			int posY = row * TILE_SIZE;																			// position y
-			int groundTileType = getRandom(1, 5);																// random ground tile type
-			std::string groundAnim = "ground";																	// ground animation
-			switch (groundTileType) {																			// Set ground animation based on random type
+	for (Uint32 row = 0; row < LEVEL_ROWS; ++row) {																	// FOR EACH ROW
+		for (Uint32 col = 0; col < LEVEL_COLS; ++col) {																// FOR EACH COLUMN
+			Uint32 posX = col * TILE_SIZE;																			// position x
+			Uint32 posY = row * TILE_SIZE;																			// position y
+			Uint32 groundTileType = getRandom(1, 5);																// random ground tile type
+			std::string groundAnim = "ground";																		// ground animation
+			switch (groundTileType) {																				// Set ground animation based on random type
 			case 1: groundAnim = "ground"; break;
 			case 2: groundAnim = "ground2"; break;
 			case 3: groundAnim = "ground3"; break;
 			case 4: groundAnim = "ground4"; break;
 			default: groundAnim = "ground"; break;
 			}
-			mySystem->addGroundTile(groundAnim, posX, posY);													// add ground tile
-			int slotContent = levelmap.map[mySystem->getCurrentLevel()][row][col];								// get slot content
-			switch (slotContent) {																				// SWITCH BASED ON SLOT CONTENT
-			case 1: { uint32_t id = spawnBlock(float(posX), float(posY)); 	blockIds.push_back(id); break; }	// spawn block
+			mySystem->addGroundTile(groundAnim, posX, posY);														// add ground tile
+			Uint32 slotContent = levelmap.map[mySystem->getCurrentLevel()][row][col];								// get slot content
+			switch (slotContent) {																					// SWITCH BASED ON SLOT CONTENT
+			case 1: { uint32_t id = spawnBlock(float(posX), float(posY)); blockIds.push_back(id); break; }			// spawn block
 			case 2: {
-				if (playerEntityId >= 0)																		// IF PLAYER EXISTS
-					mySystem->setEntityPosition(playerEntityId, Vector2f(float(posX), float(posY)));			// move existing player
-				else playerEntityId = spawnPC(float(posX), float(posY));										// spawn player
+				if (playerEntityId >= 0)																			// IF PLAYER EXISTS
+					mySystem->setEntityPosition(playerEntityId, Vector2f(float(posX), float(posY)));				// move existing player
+				else playerEntityId = spawnPC(float(posX), float(posY));											// spawn player
 				break;
 			}
-			case 3: { spawnNPC(float(posX), float(posY)); break; }												// spawn NPC
-			case 4: { mySystem->addGroundTile("road", posX, posY);	 break; }									// road tile
-			case 5: { mySystem->addGroundTile("roadH", posX, posY);	 break; }									// road horizontal tile
-			case 6: { mySystem->addGroundTile("roadV", posX, posY); break; }									// road vertical tile
-			case 10: { spawnEndLevelTrigger(float(posX), float(posY)); break; }									// spawn end level trigger
+			case 3: { spawnNPC(float(posX), float(posY)); break; }													// spawn NPC
+			case 4: { mySystem->addGroundTile("road", posX, posY);	 break; }										// road tile
+			case 5: { mySystem->addGroundTile("roadH", posX, posY);	 break; }										// road horizontal tile
+			case 6: { mySystem->addGroundTile("roadV", posX, posY); break; }										// road vertical tile
+			case 10: { spawnEndLevelTrigger(float(posX), float(posY)); break; }										// spawn end level trigger
 			default: break;
 			}
 		}
 	}
-	trySpawnItem(numAmmo, [this](float x, float y) { return spawnAmmoPickup(x, y); });							// try spawn ammo pickups
-	trySpawnItem(numHealth, [this](float x, float y) { return spawnHealthPickup(x, y); });						// try spawn health pickups
+	trySpawnItem(numAmmo, [this](float x, float y) { return spawnAmmoPickup(x, y); });								// try spawn ammo pickups
+	trySpawnItem(numHealth, [this](float x, float y) { return spawnHealthPickup(x, y); });							// try spawn health pickups
 }
 
-void MyGame::trySpawnItem(int count, std::function<int(float, float)> func) {
-	const int maxAttemptsPerItem = 50;																			// attempts per item
-	for (int i = 0; i < count; ++i) {																			// FOR EACH ITEM TO SPAWN
-		bool spawned = false;																					// spawned flag
-		for (int attempt = 0; attempt < maxAttemptsPerItem && !spawned; ++attempt) {							// FOR EACH ATTEMPT
-			int randCol = getRandom(TILE_SIZE, worldWidth - TILE_SIZE);											// random x
-			int randRow = getRandom(TILE_SIZE, worldHeight - TILE_SIZE);										// random y
-			SDL_Rect itemRect = { randCol, randRow, TILE_SIZE, TILE_SIZE };										// item rect
-			bool collision = false;																				// collision flag
-			for (int blockId : blockIds) {																		// FOR EACH BLOCK
-				SDL_Rect blockRect = mySystem->getEntityColliderRect(blockId);									// get block rect
-				if (SDL_HasIntersection(&blockRect, &itemRect)) { collision = true; break; }					// IF INTERSECTION, set collision flag and break
+void MyGame::trySpawnItem(Uint32 count, std::function<Uint32(float, float)> func) {
+	const Uint32 maxAttemptsPerItem = 50;																			// attempts per item
+	for (Uint32 i = 0; i < count; ++i) {																			// FOR EACH ITEM TO SPAWN
+		bool spawned = false;																						// spawned flag
+		for (Uint32 attempt = 0; attempt < maxAttemptsPerItem && !spawned; ++attempt) {								// FOR EACH ATTEMPT
+			Uint32 randCol = getRandom(TILE_SIZE, worldWidth - TILE_SIZE);											// random x
+			Uint32 randRow = getRandom(TILE_SIZE, worldHeight - TILE_SIZE);											// random y
+			SDL_Rect itemRect = { randCol, randRow, TILE_SIZE, TILE_SIZE };											// item rect
+			bool collision = false;																					// collision flag
+			for (Uint32 blockId : blockIds) {																		// FOR EACH BLOCK
+				SDL_Rect blockRect = mySystem->getEntityColliderRect(blockId);										// get block rect
+				if (SDL_HasIntersection(&blockRect, &itemRect)) { collision = true; break; }						// IF INTERSECTION, set collision flag and break
 			}
-			if (!collision) {																					// IF NO COLLISION
-				int id = func(float(randCol), float(randRow));													// spawn item
-				blockIds.push_back(id);																			// store pickup ID
-				spawned = true;																					// set spawned flag
+			if (!collision) {																						// IF NO COLLISION
+				Uint32 id = func(float(randCol), float(randRow));													// spawn item
+				blockIds.push_back(id);																				// store pickup ID
+				spawned = true;																						// set spawned flag
 			}
 		}
 	}
@@ -218,6 +224,7 @@ uint32_t MyGame::spawnPC(float x, float y)
 	mySystem->addComponentAudio(entity, "player_hit_sound", "shoot");												// add audio component
 	mySystem->attachSprite(entity, "player_idle_down");																// add default sprite
 	mySystem->initProjectilePool(entity, DEFAULT_PROJECTILES_PER_OWNER);											// add projectile pool
+	otherEntities.push_back(entity);																				// store PC entity ID
 	return entity;																									// return entity
 }
 
@@ -238,6 +245,7 @@ uint32_t MyGame::spawnNPC(float x, float y) {
 	mySystem->addComponentAudio(entity, "zombie_hit_sound", "");													// add audio component
 	mySystem->attachSprite(entity, "zombie_idle_down");																// add default sprite
 	mySystem->addComponentScoreValue(entity, 10);																	// add score value component
+	otherEntities.push_back(entity);																				// store NPC entity ID
 	return entity;																									// return entity
 }
 
@@ -277,5 +285,6 @@ uint32_t MyGame::spawnEndLevelTrigger(float x, float y) {
 	mySystem->addComponentCollider(entity, x, y, TILE_SIZE, TILE_SIZE);												// add collider component
 	mySystem->attachSprite(entity, "endLevel");																		// add end level sprite
 	mySystem->addComponentAudio(entity, "", "endLevel_sound");														// add audio component
+	otherEntities.push_back(entity);																				// store end level trigger entity ID
 	return entity;																									// return entity
 }

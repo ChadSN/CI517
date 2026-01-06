@@ -128,7 +128,7 @@ private:
 	bool isValidComponent(Entity entity, ComponentMap<T>& comp);																// check if entity has valid component
 public:
 	~MyEngineSystem();																											// Destructor
-	Entity createEntity() { static Entity next{}; Entity id = next++; activeEntities.insert(id); return id; };				// Create a new entity ID
+	Entity createEntity() { static Entity next{}; Entity id = next++; activeEntities.insert(id); return id; };					// Create a new entity ID
 	void loadSprite(const std::string& name, const std::string& filename, int frameW, int frameH, int frames, int startFrame = 0, bool loop = false, float scale = 1, SDL_Color transparent = { 255,255,255,255 });	// Load sprite from file
 	void loadSound(const std::string& name, const std::string& filename);														// Load sound
 	void render(std::shared_ptr<GraphicsEngine> gfx);																			// Render all entities
